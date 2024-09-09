@@ -1,0 +1,31 @@
+---
+import ThemeIcon from "./ThemeIcon.astro"
+
+const { cookies, redirect } = Astro;
+
+const accessToken = cookies.get("sb-access-token");
+const refreshToken = cookies.get("sb-refresh-token");
+
+let userIsLoggedIn = true;
+if (!accessToken || !refreshToken) {
+	userIsLoggedIn = false;
+ 	return redirect("/signin");
+}
+---
+
+	<a href="/" class="text-3xl font-bold text-black dark:text-white">
+		<span>Coff<span class="text-lime-600 dark:text-lime-400">ee</span>Pleas<span class="text-lime-600 dark:text-lime-400">e</span></span>
+		<!-- <img src="./your-logo.svg" alt="brand logo" class="w-10" /> -->
+	</a>
+	<!-- Desktop Menu -->
+	<ul class="hidden items-center gap-4 sm:flex">
+		<li><a href="/books" class="font-extrabold hover:underline hover:text-lime-600" aria-current="page">Books</a></li>
+		<li><a href="/movies" class="font-extrabold hover:underline hover:text-lime-600">Movies</a></li>
+		<li><a href="/tvshows" class="font-extrabold hover:underline hover:text-lime-600">TvShows</a></li>
+		<!-- CTA Button -->
+		<ThemeIcon/>
+		{ userIsLoggedIn ? <li><a href="/profile" class="rounded-2xl bg-black hover:bg-lime-400 hover:text-black text-white p-4 text-center text-md font-extrabold tracking-wide dark:hover:text-gray-700 dark:bg-lime-400">Profile</a></li>
+		:<li><a href="/login" class="rounded-2xl bg-black hover:bg-lime-400 hover:text-black text-white p-4 text-center text-md font-extrabold tracking-wide dark:hover:text-gray-700 dark:bg-lime-400">Login</a></li>
+		}
+	</ul>
+
