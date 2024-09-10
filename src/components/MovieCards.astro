@@ -1,0 +1,31 @@
+---
+const url = "https://www.omdbapi.com/?i=tt3896198&apikey=a18aad21&t=deadpool+and+wolverine&y=2024" 
+
+    const response = await fetch(url);
+    const data = await response.json();
+    return new Response(JSON.stringify(data));
+---
+
+
+
+<section class="p-8">
+    <h1 class="">Movies</h1>
+    <div class="grid items-center w-full px-5 py-12 mx-auto md:px-12 lg:px-24 max-w-full">
+        <div class="grid w-full grid-cols-1 gap-6 mx-auto lg:grid-rows-3">
+
+                            <div class="py-6">
+                            <h1 class="mx-auto mb-8 text-4xl font-semibold leading-none tracking-widertext-black dark:text-lime-200 lg:text-5xl">{data.Title}</h1>
+                            <h2 class="mb-8 text-lg font-semibold tracking-widest text-blue-600 uppercase"><span class="font-extrabold">STUDIO:  </span> {data.Released}</h2>
+                            <h2 class="mb-8 text-lg font-semibold tracking-widest text-blue-600 uppercase">{data.Year}</h2>
+                            <div class="dark:bg-lime-100 bg-lime-300 rounded-3xl p-8">
+                            <p class="mx-auto text-pretty text-xl font-bold leading-relaxed tracking-wide text-gray-500">{}</p>
+                            <a href="/" class=" hover:underline text-black">read more</a>
+                            </div>
+                            
+                            </div>
+    
+    </div>
+</section>
+
+
+
