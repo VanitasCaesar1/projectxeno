@@ -20,6 +20,35 @@ const bookCollection = defineCollection({
       
     })
 });
+
+
+const animeCollection = defineCollection({
+    type:"data",
+    schema: z.object({
+        
+        aired: z.string(),
+        aired_string: z.string(),
+        airing: z.boolean(),
+        anime_id: z.number(),
+        duration: z.string(),
+        episodes: z.string(),
+        genre: z.array(z.string()),
+        licensor: z.string(),
+        producer: z.string(),
+        rating: z.string(),
+        related: z.string(),
+        source: z.string(),
+        status: z.string(),
+        studio: z.string(),
+        title: z.string(),
+        type: z.string(),
+    })
+});
+
 export const collection = {
     'books' : bookCollection,
+}
+
+export const collection2 = {
+    'anime' : animeCollection,
 }
