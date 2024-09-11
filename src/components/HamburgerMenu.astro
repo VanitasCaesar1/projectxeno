@@ -1,7 +1,16 @@
 ---
 import ThemeIcon from "./ThemeIcon.astro"
 
+const { cookies, redirect } = Astro
+
+const accessToken = cookies.get("sb-access-token");
+const refreshToken = cookies.get("sb-refresh-token");
 let userIsLoggedIn = true
+
+if (!accessToken || !refreshToken) {
+  userIsLoggedIn = false;
+}
+
 ---
 
 	<!-- Mobile Menu Button -->
@@ -20,8 +29,12 @@ let userIsLoggedIn = true
 		<li class="py-4"><a href="/anime" class="w-full text-lg font-bold focus:underline text-lime-400">Anime</a></li>
         <ThemeIcon/>
 		<!-- CTA Button -->
-		{ userIsLoggedIn ? <li class="mt-4 w-full border-none"><a href="#" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Create a Account</a></li>
-        <li class="mt-4 w-full border-none"><a href="#" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Login</a></li>
-        : <li class="mt-4 w-full border-none"><a href="#" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Profile</a></li>
-    }
+		{ userIsLoggedIn ? <li class="mt-4 w-full border-none"><a href="/profile" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Profile</a></li>
+							<form action="/api/auth/signout">
+							<button onclick="logout()" type="submit" class="mt-4 w-full border-none rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Logout</button>
+							</form>
+		: <li class="mt-4 w-full border-none"><a href="/register" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Create a Account</a></li>
+        <li class="mt-4 w-full border-none"><a href="/login" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Login</a></li>
+        
+}	
     </ul>
