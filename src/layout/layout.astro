@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 const pageTitle = "CoffeePlease";
+import  SpeedInsights  from "@vercel/speed-insights/astro"
 ---
 <html lang="en">
   <head>
@@ -11,6 +12,7 @@ const pageTitle = "CoffeePlease";
     <title>{pageTitle}</title>
   </head>
   <body>
+    <SpeedInsights/>
     <slot/>
   </body>
 </html>
