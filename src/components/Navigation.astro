@@ -1,8 +1,20 @@
 ---
 import ThemeIcon from "./ThemeIcon.astro"
+const { cookies } = Astro;
 
 
-let userIsLoggedIn = true;
+const accessToken = cookies.get("sb-access-token");
+const refreshToken = cookies.get("sb-refresh-token");
+
+
+let userIsLoggedIn = false;
+	
+if (accessToken && refreshToken) {
+	userIsLoggedIn = true;
+} 
+	
+
+
 
 ---
 
