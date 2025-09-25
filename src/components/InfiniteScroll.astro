@@ -1,0 +1,298 @@
+---
+interface Props {
+  hasMore: boolean;
+  loading: boolean;
+  onLoadMore: string; // JavaScript function name to call
+  threshold?: number;
+  class?: string;
+  loadingText?: string;
+  endText?: string;
+  autoLoad?: boolean;
+}
+
+const {
+  hasMore,
+  loading,
+  onLoadMore,
+  threshold = 200,
+  class: className = "",
+  loadingText = "Loading more...",
+  endText = "You've reached the end of the results",
+  autoLoad = true,
+} = Astro.props;
+---
+
+<div class={`infinite-scroll-container ${className}`}>
+  <!-- Loading indicator -->
+  {
+    loading && (
+      <div class="flex justify-center items-center py-8" role="status" aria-live="polite">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" aria-hidden="true" />
+        <span class="ml-2 text-gray-600 dark:text-gray-400">{loadingText}</span>
+      </div>
+    )
+  }
+
+  <!-- Load more trigger -->
+  {
+    hasMore && !loading && (
+      <div class="load-more-trigger" data-threshold={threshold} data-auto-load={autoLoad}>
+        <button
+          class="load-more-btn w-full py-3 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          onclick={onLoadMore}
+          aria-label="Load more content"
+        >
+          Load More
+        </button>
+      </div>
+    )
+  }
+
+  <!-- End of results indicator -->
+  {
+    !hasMore && !loading && (
+      <div class="text-center py-8 text-gray-500 dark:text-gray-400" role="status">
+        <p>{endText}</p>
+      </div>
+    )
+  }
+</div>
+
+<script is:inline define:vars={{ onLoadMore, threshold }}>
+  // Enhanced Intersection Observer for infinite scroll with performance optimizations
+  if ("IntersectionObserver" in window) {
+    let loadMoreObserver;
+    let mutationObserver;
+    let isObserving = false;
+    
+    // Throttle function to limit observer callbacks
+    function throttle(func, limit) {
+      let inThrottle;
+      return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+          func.apply(context, args);
+          inThrottle = true;
+          setTimeout(() => inThrottle = false, limit);
+        }
+      }
+    }
+
+    // Performance-optimized observer callback
+    const observerCallback = throttle((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const trigger = entry.target;
+          const autoLoad = trigger.dataset.autoLoad !== 'false';
+          const loadMoreBtn = trigger.querySelector(".load-more-btn");
+
+          if (loadMoreBtn && !loadMoreBtn.disabled && autoLoad) {
+            // Add loading state to button
+            loadMoreBtn.disabled = true;
+            loadMoreBtn.textContent = 'Loading...';
+            
+            // Automatically trigger load more when trigger comes into view
+            if (typeof window[onLoadMore] === "function") {
+              // Use requestAnimationFrame for better performance
+              requestAnimationFrame(() => {
+                window[onLoadMore]();
+              });
+            }
+          }
+        }
+      });
+    }, 100); // Throttle to 100ms
+
+    loadMoreObserver = new IntersectionObserver(observerCallback, {
+      rootMargin: `${threshold}px 0px`,
+      threshold: 0.01,
+    });
+
+    // Batch observe load more triggers for better performance
+    const observeLoadMoreTriggers = () => {
+      if (isObserving) return;
+      isObserving = true;
+      
+      // Use requestIdleCallback if available for better performance
+      const observeFunction = () => {
+        const triggers = document.querySelectorAll(".load-more-trigger:not([data-observed])");
+        triggers.forEach((trigger) => {
+          trigger.setAttribute('data-observed', 'true');
+          loadMoreObserver.observe(trigger);
+        });
+        isObserving = false;
+      };
+
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(observeFunction);
+      } else {
+        setTimeout(observeFunction, 0);
+      }
+    };
+
+    // Initial observation
+    observeLoadMoreTriggers();
+
+    // Optimized mutation observer with debouncing
+    let mutationTimeout;
+    mutationObserver = new MutationObserver(() => {
+      clearTimeout(mutationTimeout);
+      mutationTimeout = setTimeout(observeLoadMoreTriggers, 250);
+    });
+
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (loadMoreObserver) loadMoreObserver.disconnect();
+      if (mutationObserver) mutationObserver.disconnect();
+    });
+  }
+
+  // Enhanced smooth scroll to new content with performance optimization
+  function scrollToNewContent() {
+    // Use requestAnimationFrame for smooth animation
+    requestAnimationFrame(() => {
+      const containers = document.querySelectorAll(
+        ".results-container, .results-grid, .section-grid"
+      );
+      
+      if (containers.length > 0) {
+        const lastContainer = containers[containers.length - 1];
+        const newItems = lastContainer.querySelectorAll(
+          ".media-card, .result-item, .new-content"
+        );
+        
+        if (newItems.length > 0) {
+          const lastItem = newItems[newItems.length - 1];
+          
+          // Use modern scroll API with fallback
+          if ('scrollIntoView' in lastItem) {
+            lastItem.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+              inline: "nearest"
+            });
+          }
+          
+          // Remove new-content class after animation
+          setTimeout(() => {
+            newItems.forEach(item => item.classList.remove('new-content'));
+          }, 300);
+        }
+      }
+    });
+  }
+
+  // Expose scroll function globally
+  window.scrollToNewContent = scrollToNewContent;
+
+  // Enhanced manual load more button handling with debouncing
+  let clickTimeout;
+  document.addEventListener("click", (e) => {
+    const target = e.target;
+    if (target && target.classList && target.classList.contains("load-more-btn")) {
+      e.preventDefault();
+      
+      // Prevent double clicks
+      if (target.disabled) return;
+      
+      clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => {
+        if (typeof window[onLoadMore] === "function") {
+          target.disabled = true;
+          target.textContent = 'Loading...';
+          window[onLoadMore]();
+        }
+      }, 100);
+    }
+  });
+
+  // Enhanced keyboard navigation support
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      const target = e.target;
+      if (target && target.classList && target.classList.contains("load-more-btn")) {
+        e.preventDefault();
+        
+        if (!target.disabled && typeof window[onLoadMore] === "function") {
+          target.disabled = true;
+          target.textContent = 'Loading...';
+          window[onLoadMore]();
+        }
+      }
+    }
+  });
+
+  // Reset button state function (to be called after loading completes)
+  window.resetLoadMoreButton = function(buttonElement) {
+    if (buttonElement) {
+      buttonElement.disabled = false;
+      buttonElement.textContent = 'Load More';
+    }
+  };
+
+  // Performance monitoring for infinite scroll
+  if (window.performanceMonitor) {
+    const originalLoadMore = window[onLoadMore];
+    if (originalLoadMore) {
+      window[onLoadMore] = function() {
+        window.performanceMonitor.startTimer('infiniteScroll');
+        const result = originalLoadMore.apply(this, arguments);
+        
+        // If result is a promise, measure completion time
+        if (result && typeof result.then === 'function') {
+          result.finally(() => {
+            const duration = window.performanceMonitor.endTimer('infiniteScroll');
+            console.log(`Infinite scroll load took ${duration.toFixed(2)}ms`);
+          });
+        } else {
+          const duration = window.performanceMonitor.endTimer('infiniteScroll');
+          console.log(`Infinite scroll load took ${duration.toFixed(2)}ms`);
+        }
+        
+        return result;
+      };
+    }
+  }
+</script>
+
+<style>
+  .infinite-scroll-container {
+    min-height: 60px;
+  }
+
+  .load-more-trigger {
+    margin: 2rem 0;
+  }
+
+  .load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .load-more-btn:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  /* Animation for new content */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .new-content {
+    animation: fadeInUp 0.3s ease-out;
+  }
+</style>

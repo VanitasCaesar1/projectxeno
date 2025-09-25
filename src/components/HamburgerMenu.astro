@@ -11,10 +11,47 @@ if (!accessToken || !refreshToken) {
   userIsLoggedIn = false;
 }
 
+// Get current path for active navigation highlighting
+const currentPath = Astro.url.pathname;
+
+// Helper function to determine if a link is active
+function isActive(path: string): boolean {
+	return currentPath === path;
+}
+
+// Helper function to get mobile link classes with improved accessibility
+function getMobileLinkClasses(path: string): string {
+	const baseClasses = "w-full text-lg font-bold focus:underline text-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 rounded-sm px-2 py-1 transition-colors duration-200";
+	const activeClasses = "underline opacity-100 bg-lime-900/20";
+	const inactiveClasses = "opacity-75 hover:opacity-100";
+	
+	return isActive(path) ? `${baseClasses} ${activeClasses}` : `${baseClasses} ${inactiveClasses}`;
+}
+
+// Helper function to get page title for screen readers
+function getPageTitle(path: string): string {
+	const titles = {
+		'/movies': 'Movies',
+		'/books': 'Books', 
+		'/anime': 'Anime',
+		'/dashboard': 'Dashboard'
+	};
+	return titles[path as keyof typeof titles] || 'Page';
+}
+
 ---
 
 	<!-- Mobile Menu Button -->
-	<button @click="mobileMenuIsOpen = !mobileMenuIsOpen" :aria-expanded="mobileMenuIsOpen" :class="mobileMenuIsOpen ? 'fixed top-6 right-6 z-20' : null" type="button" class="flex text-slate-600 dark:text-violet-100 sm:hidden" aria-label="mobile menu" aria-controls="mobileMenu">
+	<button 
+		@click="mobileMenuIsOpen = !mobileMenuIsOpen" 
+		:aria-expanded="mobileMenuIsOpen" 
+		:class="mobileMenuIsOpen ? 'fixed top-6 right-6 z-20' : null" 
+		type="button" 
+		class="flex text-slate-600 dark:text-violet-100 sm:hidden focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 rounded-sm p-1 transition-colors duration-200 hover:text-lime-600 dark:hover:text-lime-400" 
+		aria-label="Toggle mobile menu" 
+		aria-controls="mobileMenu"
+		@keydown.escape="mobileMenuIsOpen = false"
+	>
 		<svg x-cloak x-show="!mobileMenuIsOpen" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="size-6">
 			<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
 		</svg>
@@ -23,18 +60,42 @@ if (!accessToken || !refreshToken) {
 		</svg>
 	</button>
 	<!-- Mobile Menu -->
-	<ul x-cloak x-show="mobileMenuIsOpen" x-transition:enter="transition motion-reduce:transition-none ease-out duration-300" x-transition:enter-start="-translate-y-full" x-transition:enter-end="translate-y-0" x-transition:leave="transition motion-reduce:transition-none ease-out duration-300" x-transition:leave-start="translate-y-0" x-transition:leave-end="-translate-y-full" id="mobileMenu" class="fixed max-h-svh overflow-y-auto inset-x-0 top-0 z-10 flex flex-col divide-y divide-gray-200 rounded-b-2xl border-b border-gray-200 bg-gray-100 px-6 pb-6 pt-20 dark:divide-slate-700 dark:border-slate-700 dark:bg-gray-900 sm:hidden">
-		<li class="py-4"><a href="/movies" class="w-full text-lg font-bold focus:underline text-lime-400" aria-current="page">Movies</a></li>
-		<li class="py-4"><a href="/books" class="w-full text-lg font-bold focus:underline text-lime-400">Books</a></li>
-		<li class="py-4"><a href="/anime" class="w-full text-lg font-bold focus:underline text-lime-400">Anime</a></li>
-        <ThemeIcon/>
-		<!-- CTA Button -->
-		{ userIsLoggedIn ? <li class="mt-4 w-full border-none"><a href="/profile" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Profile</a></li>
-							<form action="/api/auth/signout">
-							<button onclick="logout()" type="submit" class="mt-4 w-full border-none rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Logout</button>
-							</form>
-		: <li class="mt-4 w-full border-none"><a href="/register" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Create a Account</a></li>
-        <li class="mt-4 w-full border-none"><a href="/login" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 active:opacity-100 active:outline-offset-0 dark:bg-lime-400 dark:text-black dark:focus-visible:outline-lime-400">Login</a></li>
-        
-}	
-    </ul>
+	<nav role="navigation" aria-label="Mobile navigation">
+		<ul 
+			x-cloak 
+			x-show="mobileMenuIsOpen" 
+			x-transition:enter="transition motion-reduce:transition-none ease-out duration-300" 
+			x-transition:enter-start="-translate-y-full" 
+			x-transition:enter-end="translate-y-0" 
+			x-transition:leave="transition motion-reduce:transition-none ease-out duration-300" 
+			x-transition:leave-start="translate-y-0" 
+			x-transition:leave-end="-translate-y-full" 
+			id="mobileMenu" 
+			class="fixed max-h-svh overflow-y-auto inset-x-0 top-0 z-10 flex flex-col divide-y divide-gray-200 rounded-b-2xl border-b border-gray-200 bg-gray-100 px-6 pb-6 pt-20 dark:divide-slate-700 dark:border-slate-700 dark:bg-gray-900 sm:hidden"
+			role="menubar"
+			@keydown.escape="mobileMenuIsOpen = false"
+			x-trap.inert.noscroll="mobileMenuIsOpen"
+		>
+			<li class="py-4" role="none"><a href="/movies" class={getMobileLinkClasses('/movies')} aria-current={isActive('/movies') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/movies')} ${isActive('/movies') ? '(current page)' : ''}`}>Movies</a></li>
+			<li class="py-4" role="none"><a href="/books" class={getMobileLinkClasses('/books')} aria-current={isActive('/books') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/books')} ${isActive('/books') ? '(current page)' : ''}`}>Books</a></li>
+			<li class="py-4" role="none"><a href="/anime" class={getMobileLinkClasses('/anime')} aria-current={isActive('/anime') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/anime')} ${isActive('/anime') ? '(current page)' : ''}`}>Anime</a></li>
+			{ userIsLoggedIn && <li class="py-4" role="none"><a href="/dashboard" class={getMobileLinkClasses('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/dashboard')} ${isActive('/dashboard') ? '(current page)' : ''}`}>Dashboard</a></li> }
+			<li class="py-4" role="none"><ThemeIcon/></li>
+			<!-- CTA Button -->
+			{ userIsLoggedIn ? 
+				<>
+					<li class="mt-4 w-full border-none" role="none"><a href="/profile" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 active:opacity-100 dark:bg-lime-400 dark:text-black transition-opacity duration-200" role="menuitem" aria-label="Go to Profile">Profile</a></li>
+					<li class="mt-4 w-full border-none" role="none">
+						<form action="/api/auth/signout">
+							<button onclick="logout()" type="submit" class="mt-4 w-full border-none rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 active:opacity-100 dark:bg-lime-400 dark:text-black transition-opacity duration-200" role="menuitem" aria-label="Logout">Logout</button>
+						</form>
+					</li>
+				</>
+			: 
+				<>
+					<li class="mt-4 w-full border-none" role="none"><a href="/register" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 active:opacity-100 dark:bg-lime-400 dark:text-black transition-opacity duration-200" role="menuitem" aria-label="Create an Account">Create an Account</a></li>
+					<li class="mt-4 w-full border-none" role="none"><a href="/login" class="rounded-2xl bg-lime-400 px-4 py-2 block text-center font-medium tracking-wide text-slate-100 hover:opacity-75 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 active:opacity-100 dark:bg-lime-400 dark:text-black transition-opacity duration-200" role="menuitem" aria-label="Login">Login</a></li>
+				</>
+			}	
+		</ul>
+	</nav>

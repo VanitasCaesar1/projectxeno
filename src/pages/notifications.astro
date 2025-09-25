@@ -1,0 +1,201 @@
+---
+import Layout from '../layouts/Layout.astro';
+import NotificationCenter from '../components/NotificationCenter.astro';
+import { supabase } from '../lib/supabase';
+
+// Check authentication
+const sessionCookie = Astro.cookies.get('sb-access-token');
+if (!sessionCookie) {
+  return Astro.redirect('/login?redirect=/notifications');
+}
+
+const { data: { user }, error } = await supabase.auth.getUser(sessionCookie.value);
+if (error || !user) {
+  return Astro.redirect('/login?redirect=/notifications');
+}
+
+// Get user profile
+const { data: profile } = await supabase
+  .from('user_profiles')
+  .select('*')
+  .eq('id', user.id)
+  .single();
+
+if (!profile) {
+  return Astro.redirect('/profile/setup');
+}
+---
+
+<Layout title="Notifications - Media Tracker">
+  <div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Header -->
+      <div class="mb-8">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900">Notifications</h1>
+            <p class="text-gray-600 mt-1">Stay updated with your activity and interactions</p>
+          </div>
+          
+          <div class="flex items-center gap-4">
+            <a 
+              href="/profile/settings#notifications"
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              Settings
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notification Filters -->
+      <div class="mb-6">
+        <div class="flex flex-wrap gap-2">
+          <button 
+            class="notification-filter active px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            data-filter="all"
+          >
+            All
+          </button>
+          <button 
+            class="notification-filter px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            data-filter="unread"
+          >
+            Unread
+          </button>
+          <button 
+            class="notification-filter px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            data-filter="like"
+          >
+            ❤️ Likes
+          </button>
+          <button 
+            class="notification-filter px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            data-filter="follow"
+          >
+            👥 Follows
+          </button>
+          <button 
+            class="notification-filter px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            data-filter="review"
+          >
+            📝 Reviews
+          </button>
+          <button 
+            class="notification-filter px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+            data-filter="achievement"
+          >
+            🏆 Achievements
+          </button>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="bg-white rounded-lg shadow-sm border">
+        <NotificationCenter userId={user.id} showUnreadOnly={false} limit={50} />
+      </div>
+
+      <!-- Load More -->
+      <div class="text-center mt-8">
+        <button 
+          id="load-more-btn"
+          class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          Load More Notifications
+        </button>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const filterButtons = document.querySelectorAll('.notification-filter');
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    let currentFilter = 'all';
+    let currentOffset = 50;
+
+    // Handle filter buttons
+    filterButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        // Update active state
+        filterButtons.forEach(btn => {
+          btn.classList.remove('active');
+          btn.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+          btn.classList.remove('bg-blue-600', 'text-white');
+        });
+        
+        this.classList.add('active');
+        this.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+        this.classList.add('bg-blue-600', 'text-white');
+
+        currentFilter = this.getAttribute('data-filter');
+        currentOffset = 0;
+        
+        // Reload notifications with filter
+        loadNotifications(true);
+      });
+    });
+
+    // Handle load more
+    loadMoreBtn?.addEventListener('click', function() {
+      loadNotifications(false);
+    });
+
+    async function loadNotifications(replace = false) {
+      try {
+        let url = `/api/notifications?limit=50&offset=${currentOffset}`;
+        
+        if (currentFilter === 'unread') {
+          url += '&unread=true';
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success) {
+          if (replace) {
+            // Replace current notifications
+            window.location.reload(); // Simple approach for now
+          } else {
+            // Append new notifications
+            currentOffset += 50;
+            // This would require more complex DOM manipulation
+            // For now, just reload the page
+            window.location.reload();
+          }
+
+          // Hide load more button if no more notifications
+          if (!data.hasMore) {
+            loadMoreBtn.style.display = 'none';
+          }
+        }
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+      }
+    }
+
+    // Initialize filter button styles
+    filterButtons.forEach(button => {
+      if (button.classList.contains('active')) {
+        button.classList.add('bg-blue-600', 'text-white');
+      } else {
+        button.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+      }
+    });
+  });
+</script>
+
+<style>
+  .notification-filter.active {
+    @apply bg-blue-600 text-white;
+  }
+  
+  .notification-filter:not(.active) {
+    @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+  }
+</style>

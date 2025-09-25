@@ -1,0 +1,455 @@
+---
+import type { UserProfile, UserPreferences } from '../types/database';
+
+interface Props {
+  profile: UserProfile;
+  preferences: UserPreferences;
+}
+
+const { profile, preferences } = Astro.props;
+---
+
+<div class="max-w-4xl mx-auto space-y-8">
+  <!-- Profile Information -->
+  <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <h2 class="text-lg font-medium text-gray-900 dark:text-white">Profile Information</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-400">Update your profile details and how others see you.</p>
+    </div>
+    
+    <form id="profileForm" class="p-6 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Username
+          </label>
+          <div class="mt-1">
+            <input 
+              type="text" 
+              id="username" 
+              name="username" 
+              value={profile.username}
+              required
+              class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+            <div id="username-error" class="mt-1 text-sm text-red-600 hidden"></div>
+            <div id="username-success" class="mt-1 text-sm text-green-600 hidden"></div>
+          </div>
+        </div>
+        
+        <div>
+          <label for="displayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Display Name
+          </label>
+          <div class="mt-1">
+            <input 
+              type="text" 
+              id="displayName" 
+              name="displayName" 
+              value={profile.display_name || ''}
+              class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div>
+        <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Bio
+        </label>
+        <div class="mt-1">
+          <textarea 
+            id="bio" 
+            name="bio" 
+            rows="4" 
+            placeholder="Tell others about yourself..."
+            class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          >{profile.bio || ''}</textarea>
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Brief description for your profile.</p>
+        </div>
+      </div>
+      
+      <div>
+        <label for="avatarUrl" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Avatar URL
+        </label>
+        <div class="mt-1">
+          <input 
+            type="url" 
+            id="avatarUrl" 
+            name="avatarUrl" 
+            value={profile.avatar_url || ''}
+            placeholder="https://example.com/avatar.jpg"
+            class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          />
+          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Link to your profile picture.</p>
+        </div>
+      </div>
+      
+      <div class="flex justify-end">
+        <button 
+          type="submit" 
+          id="saveProfileBtn"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span id="saveProfileText">Save Changes</span>
+          <svg id="saveProfileSpinner" class="animate-spin -mr-1 ml-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Privacy Settings -->
+  <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <h2 class="text-lg font-medium text-gray-900 dark:text-white">Privacy Settings</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-400">Control who can see your profile and activity.</p>
+    </div>
+    
+    <form id="privacyForm" class="p-6 space-y-6">
+      <div>
+        <label for="privacyLevel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Profile Visibility
+        </label>
+        <div class="mt-1">
+          <select 
+            id="privacyLevel" 
+            name="privacyLevel"
+            class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="public" selected={profile.privacy_level === 'public'}>
+              Public - Anyone can see your profile and activity
+            </option>
+            <option value="friends" selected={profile.privacy_level === 'friends'}>
+              Friends Only - Only people you follow can see your profile
+            </option>
+            <option value="private" selected={profile.privacy_level === 'private'}>
+              Private - Only you can see your profile
+            </option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <label for="publicLists" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Public Lists
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Allow others to see your media lists</p>
+          </div>
+          <div class="ml-4">
+            <input 
+              type="checkbox" 
+              id="publicLists" 
+              name="publicLists" 
+              checked={preferences.public_lists}
+              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+          </div>
+        </div>
+        
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <label for="publicRatings" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Public Ratings
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Allow others to see your ratings and reviews</p>
+          </div>
+          <div class="ml-4">
+            <input 
+              type="checkbox" 
+              id="publicRatings" 
+              name="publicRatings" 
+              checked={preferences.public_ratings}
+              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex justify-end">
+        <button 
+          type="submit" 
+          id="savePrivacyBtn"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span id="savePrivacyText">Save Privacy Settings</span>
+          <svg id="savePrivacySpinner" class="animate-spin -mr-1 ml-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Notification Preferences -->
+  <div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <h2 class="text-lg font-medium text-gray-900 dark:text-white">Notification Preferences</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-400">Choose what notifications you want to receive.</p>
+    </div>
+    
+    <form id="notificationForm" class="p-6 space-y-6">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <label for="emailNotifications" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Email Notifications
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Receive email notifications for important updates</p>
+          </div>
+          <div class="ml-4">
+            <input 
+              type="checkbox" 
+              id="emailNotifications" 
+              name="emailNotifications" 
+              checked={preferences.email_notifications}
+              class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+          </div>
+        </div>
+      </div>
+      
+      <div>
+        <label for="preferredLanguage" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Preferred Language
+        </label>
+        <div class="mt-1">
+          <select 
+            id="preferredLanguage" 
+            name="preferredLanguage"
+            class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="en" selected={preferences.preferred_language === 'en'}>English</option>
+            <option value="es" selected={preferences.preferred_language === 'es'}>Español</option>
+            <option value="fr" selected={preferences.preferred_language === 'fr'}>Français</option>
+            <option value="de" selected={preferences.preferred_language === 'de'}>Deutsch</option>
+            <option value="ja" selected={preferences.preferred_language === 'ja'}>日本語</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="flex justify-end">
+        <button 
+          type="submit" 
+          id="saveNotificationBtn"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span id="saveNotificationText">Save Preferences</span>
+          <svg id="saveNotificationSpinner" class="animate-spin -mr-1 ml-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </button>
+      </div>
+    </form>
+  </div>
+  
+  <!-- Danger Zone -->
+  <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-red-200 dark:border-red-800">
+    <div class="px-6 py-4 border-b border-red-200 dark:border-red-800">
+      <h2 class="text-lg font-medium text-red-900 dark:text-red-400">Danger Zone</h2>
+      <p class="text-sm text-red-600 dark:text-red-400">Irreversible and destructive actions.</p>
+    </div>
+    
+    <div class="p-6">
+      <div class="flex items-center justify-between">
+        <div class="flex-1">
+          <h3 class="text-sm font-medium text-gray-900 dark:text-white">Delete Account</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            Permanently delete your account and all associated data. This action cannot be undone.
+          </p>
+        </div>
+        <div class="ml-4">
+          <button 
+            type="button" 
+            id="deleteAccountBtn"
+            class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:bg-gray-800 dark:text-red-400 dark:border-red-600 dark:hover:bg-red-900"
+          >
+            Delete Account
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Profile form handling
+    const profileForm = document.getElementById('profileForm');
+    const usernameInput = document.getElementById('username');
+    let usernameCheckTimeout;
+
+    // Username validation
+    usernameInput?.addEventListener('input', function() {
+      const username = this.value.trim();
+      const errorDiv = document.getElementById('username-error');
+      const successDiv = document.getElementById('username-success');
+
+      clearTimeout(usernameCheckTimeout);
+      errorDiv?.classList.add('hidden');
+      successDiv?.classList.add('hidden');
+
+      if (username.length < 3) {
+        if (username.length > 0) {
+          showError('username', 'Username must be at least 3 characters long');
+        }
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showError('username', 'Username can only contain letters, numbers, and underscores');
+        return;
+      }
+
+      // Check if username changed from original
+      if (username === this.defaultValue) {
+        return;
+      }
+
+      usernameCheckTimeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+          const data = await response.json();
+          
+          if (data.available) {
+            showSuccess('username', 'Username is available');
+          } else {
+            showError('username', 'Username is already taken');
+          }
+        } catch (error) {
+          console.error('Error checking username:', error);
+        }
+      }, 500);
+    });
+
+    // Form submissions
+    profileForm?.addEventListener('submit', handleFormSubmit('profile', '/api/user/profile'));
+    document.getElementById('privacyForm')?.addEventListener('submit', handleFormSubmit('privacy', '/api/user/preferences'));
+    document.getElementById('notificationForm')?.addEventListener('submit', handleFormSubmit('notification', '/api/user/preferences'));
+
+    // Delete account confirmation
+    document.getElementById('deleteAccountBtn')?.addEventListener('click', function() {
+      if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+        if (confirm('This will permanently delete all your data, including lists, ratings, and reviews. Are you absolutely sure?')) {
+          window.location.href = '/api/user/delete-account';
+        }
+      }
+    });
+
+    function handleFormSubmit(formType, endpoint) {
+      return async function(e) {
+        e.preventDefault();
+        
+        const btn = document.getElementById(`save${formType.charAt(0).toUpperCase() + formType.slice(1)}Btn`);
+        const text = document.getElementById(`save${formType.charAt(0).toUpperCase() + formType.slice(1)}Text`);
+        const spinner = document.getElementById(`save${formType.charAt(0).toUpperCase() + formType.slice(1)}Spinner`);
+        
+        // Show loading state
+        btn.disabled = true;
+        text.textContent = 'Saving...';
+        spinner?.classList.remove('hidden');
+        
+        try {
+          const formData = new FormData(this);
+          const data = Object.fromEntries(formData.entries());
+          
+          // Convert checkboxes to booleans
+          ['publicLists', 'publicRatings', 'emailNotifications'].forEach(field => {
+            if (data.hasOwnProperty(field)) {
+              data[field] = data[field] === 'on';
+            }
+          });
+          
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // Show success message
+            showSuccessMessage('Settings saved successfully!');
+            
+            // Reload page after a short delay to show updated data
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          } else {
+            showErrorMessage(result.error?.message || 'Failed to save settings');
+          }
+        } catch (error) {
+          console.error('Error saving settings:', error);
+          showErrorMessage('An error occurred while saving settings');
+        } finally {
+          // Reset button state
+          btn.disabled = false;
+          text.textContent = text.textContent.replace('Saving...', 'Save Changes');
+          spinner?.classList.add('hidden');
+        }
+      };
+    }
+
+    function showError(fieldName, message) {
+      const errorDiv = document.getElementById(`${fieldName}-error`);
+      if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+      }
+      hideSuccess(fieldName);
+    }
+
+    function showSuccess(fieldName, message) {
+      const successDiv = document.getElementById(`${fieldName}-success`);
+      if (successDiv) {
+        successDiv.textContent = message;
+        successDiv.classList.remove('hidden');
+      }
+      hideError(fieldName);
+    }
+
+    function hideError(fieldName) {
+      const errorDiv = document.getElementById(`${fieldName}-error`);
+      errorDiv?.classList.add('hidden');
+    }
+
+    function hideSuccess(fieldName) {
+      const successDiv = document.getElementById(`${fieldName}-success`);
+      successDiv?.classList.add('hidden');
+    }
+
+    function showSuccessMessage(message) {
+      // Create and show a temporary success notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+
+    function showErrorMessage(message) {
+      // Create and show a temporary error notification
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 5000);
+    }
+  });
+</script>

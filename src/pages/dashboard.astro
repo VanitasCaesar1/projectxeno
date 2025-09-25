@@ -1,0 +1,1018 @@
+---
+import Layout from "../layout/layout.astro";
+import Header from "../components/Header.astro";
+import ActivityFeed from "../components/ActivityFeed.astro";
+import OnboardingBanner from "../components/OnboardingBanner.astro";
+import { supabase } from "../lib/supabase";
+import {
+  calculateUserStats,
+  getRecommendations,
+  getUserActivitySummary,
+} from "../lib/userStats";
+
+// Check if user is authenticated
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/login");
+}
+
+// Set up Supabase session
+supabase.auth.setSession({
+  access_token: accessToken.value,
+  refresh_token: refreshToken.value,
+});
+
+const {
+  data: { user },
+  error: authError,
+} = await supabase.auth.getUser();
+
+if (authError || !user) {
+  return Astro.redirect("/login");
+}
+
+// Get user profile
+const { data: profile } = await supabase
+  .from("user_profiles")
+  .select("*")
+  .eq("id", user.id)
+  .single();
+
+if (!profile) {
+  return Astro.redirect("/profile/setup");
+}
+
+// Check if this is a new user (for onboarding)
+const { data: userMediaCount } = await supabase
+  .from("user_media")
+  .select("id", { count: "exact", head: true })
+  .eq("user_id", user.id);
+
+const isNewUser = (userMediaCount || 0) === 0;
+
+// Get comprehensive user statistics
+const stats = await calculateUserStats(user.id);
+
+// Get initial activities for the feed
+const { data: rawActivities, error: activitiesError } = await supabase
+  .from("user_activities")
+  .select(
+    `
+    *,
+    user:user_profiles!user_activities_user_id_fkey(
+      id,
+      username,
+      display_name,
+      avatar_url
+    ),
+    media:media_items!user_activities_media_id_fkey(
+      id,
+      title,
+      media_type,
+      poster_url
+    ),
+    target_user:user_profiles!user_activities_target_user_id_fkey(
+      id,
+      username,
+      display_name,
+      avatar_url
+    ),
+    review:reviews!user_activities_review_id_fkey(
+      id,
+      title,
+      content
+    )
+  `
+  )
+  .eq("user_id", user.id)
+  .order("created_at", { ascending: false })
+  .limit(20);
+
+if (activitiesError) {
+  console.error('Error fetching activities:', activitiesError);
+}
+
+// Transform the data to match the ActivityFeed component interface
+const activities =
+  rawActivities?.map((activity) => ({
+    id: activity.id,
+    activityType: activity.activity_type,
+    createdAt: activity.created_at,
+    metadata: activity.metadata as Record<string, any>,
+    user: {
+      id: activity.user?.id || "",
+      username: activity.user?.username || "",
+      displayName: activity.user?.display_name || undefined,
+      avatarUrl: activity.user?.avatar_url || undefined,
+    },
+    media: activity.media
+      ? {
+          id: activity.media.id,
+          title: activity.media.title,
+          mediaType: activity.media.media_type,
+          posterUrl: activity.media.poster_url || undefined,
+        }
+      : undefined,
+  })) || [];
+
+// Get recommendations for the user
+const recommendations = await getRecommendations(user.id, 6);
+
+// Get recent activity summary
+const recentActivity = await getUserActivitySummary(user.id, 5);
+---
+
+<Layout title="Dashboard">
+  <main>
+    <Header />
+
+    <div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Onboarding Banner for New Users -->
+        <OnboardingBanner isNewUser={isNewUser} userStats={stats} />
+
+        <!-- Welcome Section -->
+        <div class="mb-8">
+          <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                  Welcome back, {profile.display_name || profile.username}!
+                </h1>
+                <p class="text-gray-600 dark:text-gray-400 mt-1">
+                  {
+                    isNewUser
+                      ? "Ready to start tracking your media journey?"
+                      : "Here's what's happening in your media world"
+                  }
+                </p>
+              </div>
+
+              <!-- Quick Stats -->
+              <div class="hidden md:flex space-x-6">
+                <div class="text-center">
+                  <div
+                    class="text-2xl font-bold text-blue-600 dark:text-blue-400"
+                  >
+                    {stats.totalItems}
+                  </div>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Total Items
+                  </div>
+                </div>
+                <div class="text-center">
+                  <div
+                    class="text-2xl font-bold text-green-600 dark:text-green-400"
+                  >
+                    {stats.completedItems}
+                  </div>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Completed
+                  </div>
+                </div>
+                <div class="text-center">
+                  <div
+                    class="text-2xl font-bold text-purple-600 dark:text-purple-400"
+                  >
+                    {stats.totalReviews}
+                  </div>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Reviews
+                  </div>
+                </div>
+                <div class="text-center">
+                  <div
+                    class="text-2xl font-bold text-indigo-600 dark:text-indigo-400"
+                  >
+                    {stats.followers}
+                  </div>
+                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                    Followers
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Enhanced Stats Row for Mobile -->
+            <div class="md:hidden mt-6 grid grid-cols-2 gap-4">
+              <div
+                class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
+                <div class="text-xl font-bold text-blue-600 dark:text-blue-400">
+                  {stats.totalItems}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  Total Items
+                </div>
+              </div>
+              <div
+                class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
+                <div
+                  class="text-xl font-bold text-green-600 dark:text-green-400"
+                >
+                  {stats.completedItems}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  Completed
+                </div>
+              </div>
+              <div
+                class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
+                <div
+                  class="text-xl font-bold text-purple-600 dark:text-purple-400"
+                >
+                  {stats.totalReviews}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  Reviews
+                </div>
+              </div>
+              <div
+                class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
+                <div
+                  class="text-xl font-bold text-indigo-600 dark:text-indigo-400"
+                >
+                  {stats.followers}
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  Followers
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Media Tabs -->
+        <div class="mb-8">
+          <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <!-- Tab Navigation -->
+            <div class="border-b border-gray-200 dark:border-gray-700">
+              <nav class="flex space-x-8 px-6" aria-label="My Media Tabs">
+                <button
+                  class="media-tab-btn py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 border-blue-500 text-blue-600 dark:text-blue-400"
+                  data-tab="movies"
+                >
+                  🎬 My Movies
+                  <span class="ml-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 py-1 px-2 rounded-full text-xs" data-count="movies">
+                    {stats.mediaTypeBreakdown.movie}
+                  </span>
+                </button>
+                <button
+                  class="media-tab-btn py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  data-tab="books"
+                >
+                  📚 My Books
+                  <span class="ml-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 py-1 px-2 rounded-full text-xs" data-count="books">
+                    {stats.mediaTypeBreakdown.book}
+                  </span>
+                </button>
+                <button
+                  class="media-tab-btn py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  data-tab="anime"
+                >
+                  🎌 My Anime
+                  <span class="ml-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 py-1 px-2 rounded-full text-xs" data-count="anime">
+                    {stats.mediaTypeBreakdown.anime}
+                  </span>
+                </button>
+                <button
+                  class="media-tab-btn py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  data-tab="tv"
+                >
+                  📺 My TV Shows
+                  <span class="ml-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 py-1 px-2 rounded-full text-xs" data-count="tv">
+                    {stats.mediaTypeBreakdown.tv}
+                  </span>
+                </button>
+                <button
+                  class="media-tab-btn py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  data-tab="planned"
+                >
+                  📋 Planned to Watch/Read
+                  <span class="ml-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 py-1 px-2 rounded-full text-xs" data-count="planned">
+                    {stats.statusBreakdown.plan_to_watch || 0}
+                  </span>
+                </button>
+              </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="p-6">
+              <!-- Movies Tab -->
+              <div class="media-tab-content" data-tab-content="movies">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">My Movies</h3>
+                  <a href="/my/movies" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
+                    View All →
+                  </a>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="movies-grid">
+                  <!-- Movies will be loaded here -->
+                </div>
+              </div>
+
+              <!-- Books Tab -->
+              <div class="media-tab-content hidden" data-tab-content="books">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">My Books</h3>
+                  <a href="/my/books" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
+                    View All →
+                  </a>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="books-grid">
+                  <!-- Books will be loaded here -->
+                </div>
+              </div>
+
+              <!-- Anime Tab -->
+              <div class="media-tab-content hidden" data-tab-content="anime">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">My Anime</h3>
+                  <a href="/my/anime" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
+                    View All →
+                  </a>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="anime-grid">
+                  <!-- Anime will be loaded here -->
+                </div>
+              </div>
+
+              <!-- TV Shows Tab -->
+              <div class="media-tab-content hidden" data-tab-content="tv">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">My TV Shows</h3>
+                  <a href="/movies" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
+                    View All →
+                  </a>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="tv-grid">
+                  <!-- TV Shows will be loaded here -->
+                </div>
+              </div>
+
+              <!-- Planned Tab -->
+              <div class="media-tab-content hidden" data-tab-content="planned">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Planned to Watch/Read</h3>
+                  <a href="/search?status=plan_to_watch" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium">
+                    View All →
+                  </a>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" id="planned-grid">
+                  <!-- Planned items will be loaded here -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <!-- Activity Feed -->
+          <div class="lg:col-span-2">
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Recent Activity</h3>
+              <ActivityFeed
+                activities={activities}
+                currentUserId={user.id}
+                feedType="personal"
+                showLoadMore={true}
+              />
+            </div>
+          </div>
+
+          <!-- Sidebar -->
+          <div class="space-y-6">
+            <!-- Quick Actions -->
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <h3
+                class="text-lg font-medium text-gray-900 dark:text-white mb-4"
+              >
+                Quick Actions
+              </h3>
+              <div class="space-y-3">
+                <a
+                  href="/search"
+                  class="flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  <span class="mr-3">🔍</span>
+                  <span>Search for Media</span>
+                </a>
+                <a
+                  href="/profile"
+                  class="flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  <span class="mr-3">👤</span>
+                  <span>View Your Profile</span>
+                </a>
+                <a
+                  href="/movies"
+                  class="flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  <span class="mr-3">🎬</span>
+                  <span>Browse Movies</span>
+                </a>
+                <a
+                  href="/books"
+                  class="flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  <span class="mr-3">📚</span>
+                  <span>Browse Books</span>
+                </a>
+                <a
+                  href="/anime"
+                  class="flex items-center w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  <span class="mr-3">🎌</span>
+                  <span>Browse Anime</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Plan to Read/Watch Section -->
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <h3
+                class="text-lg font-medium text-gray-900 dark:text-white mb-4"
+              >
+                📋 Plan to Read/Watch
+              </h3>
+              <div class="text-center">
+                <div
+                  class="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mb-2"
+                >
+                  {stats.statusBreakdown.plan_to_watch || 0}
+                </div>
+                <div class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Items in your plan list
+                </div>
+                <a
+                  href="/search?status=plan_to_watch"
+                  class="inline-flex items-center px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm"
+                >
+                  View All Planned Items
+                </a>
+              </div>
+            </div>
+
+            <!-- Enhanced Statistics -->
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <h3
+                class="text-lg font-medium text-gray-900 dark:text-white mb-4"
+              >
+                Your Statistics
+              </h3>
+              <div class="space-y-4">
+                <!-- Overall Stats -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div
+                    class="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
+                  >
+                    <div
+                      class="text-lg font-bold text-blue-600 dark:text-blue-400"
+                    >
+                      {stats.totalItems}
+                    </div>
+                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                      Total Items
+                    </div>
+                  </div>
+                  <div
+                    class="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
+                  >
+                    <div
+                      class="text-lg font-bold text-green-600 dark:text-green-400"
+                    >
+                      {stats.completedItems}
+                    </div>
+                    <div class="text-xs text-gray-600 dark:text-gray-400">
+                      Completed
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Average Rating -->
+                {
+                  stats.averageRating > 0 && (
+                    <div class="flex justify-between items-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                      <span class="text-sm text-gray-600 dark:text-gray-400">
+                        Average Rating
+                      </span>
+                      <div class="flex items-center">
+                        <span class="text-lg font-bold text-yellow-600 dark:text-yellow-400 mr-1">
+                          {stats.averageRating.toFixed(1)}
+                        </span>
+                        <svg
+                          class="w-4 h-4 text-yellow-400"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                      </div>
+                    </div>
+                  )
+                }
+
+                <!-- Media Type Breakdown -->
+                {
+                  stats.totalItems > 0 && (
+                    <div>
+                      <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                        Media Types
+                      </h4>
+                      <div class="space-y-2">
+                        {stats.mediaTypeBreakdown.movie > 0 && (
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                              🎬 Movies
+                            </span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white">
+                              {stats.mediaTypeBreakdown.movie}
+                            </span>
+                          </div>
+                        )}
+                        {stats.mediaTypeBreakdown.tv > 0 && (
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                              📺 TV Shows
+                            </span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white">
+                              {stats.mediaTypeBreakdown.tv}
+                            </span>
+                          </div>
+                        )}
+                        {stats.mediaTypeBreakdown.book > 0 && (
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                              📚 Books
+                            </span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white">
+                              {stats.mediaTypeBreakdown.book}
+                            </span>
+                          </div>
+                        )}
+                        {stats.mediaTypeBreakdown.anime > 0 && (
+                          <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">
+                              🎌 Anime
+                            </span>
+                            <span class="text-sm font-medium text-gray-900 dark:text-white">
+                              {stats.mediaTypeBreakdown.anime}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                }
+
+                <!-- Social Stats -->
+                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div
+                        class="text-lg font-bold text-purple-600 dark:text-purple-400"
+                      >
+                        {stats.totalReviews}
+                      </div>
+                      <div class="text-xs text-gray-600 dark:text-gray-400">
+                        Reviews
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        class="text-lg font-bold text-indigo-600 dark:text-indigo-400"
+                      >
+                        {stats.followers}
+                      </div>
+                      <div class="text-xs text-gray-600 dark:text-gray-400">
+                        Followers
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        class="text-lg font-bold text-pink-600 dark:text-pink-400"
+                      >
+                        {stats.following}
+                      </div>
+                      <div class="text-xs text-gray-600 dark:text-gray-400">
+                        Following
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <h3
+                class="text-lg font-medium text-gray-900 dark:text-white mb-4"
+              >
+                Recommended for You
+              </h3>
+              {
+                recommendations.length > 0 ? (
+                  <div class="space-y-4">
+                    {recommendations.slice(0, 3).map((item) => (
+                      <div class="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                        {item.poster_url && (
+                          <img
+                            src={item.poster_url}
+                            alt={`${item.title} poster`}
+                            class="w-12 h-16 object-cover rounded"
+                          />
+                        )}
+                        <div class="flex-1 min-w-0">
+                          <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            <a
+                              href={`/media/${item.media_type}/${item.id}`}
+                              class="hover:text-blue-600 dark:hover:text-blue-400"
+                            >
+                              {item.title}
+                            </a>
+                          </h4>
+                          <p class="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {item.media_type}
+                          </p>
+                          {item.average_rating && (
+                            <div class="flex items-center mt-1">
+                              <svg
+                                class="w-3 h-3 text-yellow-400 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                              </svg>
+                              <span class="text-xs text-gray-600 dark:text-gray-400">
+                                {item.average_rating.toFixed(1)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {recommendations.length > 3 && (
+                      <div class="text-center pt-2">
+                        <a
+                          href="/search?recommended=true"
+                          class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                        >
+                          View all recommendations →
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div class="text-center py-8">
+                    <div class="text-gray-400 dark:text-gray-500 mb-2">
+                      <svg
+                        class="mx-auto h-8 w-8"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                        />
+                      </svg>
+                    </div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {stats.totalItems === 0
+                        ? "Add some media to your lists to get personalized recommendations!"
+                        : "Rate more items to improve your recommendations!"}
+                    </p>
+                  </div>
+                )
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    console.log("Dashboard loaded");
+    
+    // Initialize media tabs
+    initializeMediaTabs();
+    
+    // Load initial media data
+    loadMediaForTab('movies');
+    
+    // Refresh stats periodically
+    refreshStats();
+    setInterval(refreshStats, 30000); // Refresh every 30 seconds
+  });
+
+  function initializeMediaTabs() {
+    const tabButtons = document.querySelectorAll('.media-tab-btn');
+    const tabContents = document.querySelectorAll('.media-tab-content');
+
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tabName = (button as HTMLElement).dataset.tab;
+        
+        // Update button states
+        tabButtons.forEach(btn => {
+          btn.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+          btn.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'dark:text-gray-400', 'dark:hover:text-gray-300');
+        });
+        
+        button.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'dark:text-gray-400', 'dark:hover:text-gray-300');
+        button.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+        
+        // Update tab content visibility
+        tabContents.forEach(content => {
+          content.classList.add('hidden');
+        });
+        
+        const activeContent = document.querySelector(`[data-tab-content="${tabName}"]`);
+        if (activeContent) {
+          activeContent.classList.remove('hidden');
+        }
+        
+        // Load media for this tab
+        loadMediaForTab(tabName);
+      });
+    });
+  }
+
+  async function loadMediaForTab(mediaType) {
+    const gridId = `${mediaType}-grid`;
+    const grid = document.getElementById(gridId);
+    
+    if (!grid) return;
+    
+    // Show loading state
+    grid.innerHTML = Array.from({ length: 6 }).map(() => `
+      <div class="animate-pulse">
+        <div class="bg-gray-300 dark:bg-gray-600 aspect-[2/3] rounded-lg mb-2"></div>
+        <div class="bg-gray-300 dark:bg-gray-600 h-4 rounded mb-1"></div>
+        <div class="bg-gray-300 dark:bg-gray-600 h-3 rounded w-3/4"></div>
+      </div>
+    `).join('');
+    
+    try {
+      let response;
+      if (mediaType === 'planned') {
+        // Load all planned items across all media types
+        response = await fetch(`/api/user/media?status=plan_to_watch&limit=12`);
+      } else {
+        response = await fetch(`/api/user/media?mediaType=${mediaType}&limit=6&status=all`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        renderMediaGrid(grid, result.data);
+      } else {
+        showEmptyState(grid, mediaType);
+      }
+    } catch (error) {
+      console.error(`Error loading ${mediaType}:`, error);
+      showErrorState(grid, mediaType);
+    }
+  }
+
+  function renderMediaGrid(grid, items) {
+    if (items.length === 0) {
+      showEmptyState(grid, '');
+      return;
+    }
+    
+    grid.innerHTML = items.map(item => `
+      <div class="group cursor-pointer">
+        <div class="relative aspect-[2/3] rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+          <img 
+            src="${item.media.poster_url || '/placeholder-poster.jpg'}" 
+            alt="${item.media.title}"
+            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+            loading="lazy"
+          />
+          <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity duration-200"></div>
+          <div class="absolute top-2 right-2">
+            <span class="px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}">
+              ${getStatusLabel(item.status)}
+            </span>
+          </div>
+          ${item.rating ? `
+            <div class="absolute bottom-2 left-2">
+              <span class="px-2 py-1 text-xs font-medium bg-yellow-500 text-white rounded-full">
+                ★ ${item.rating}
+              </span>
+            </div>
+          ` : ''}
+        </div>
+        <div class="mt-2">
+          <h4 class="text-sm font-medium text-gray-900 dark:text-white truncate" title="${item.media.title}">
+            ${item.media.title}
+          </h4>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            ${item.media.release_date ? new Date(item.media.release_date).getFullYear() : 'N/A'}
+          </p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function showEmptyState(grid, mediaType) {
+    const mediaTypeDisplay = mediaType.charAt(0).toUpperCase() + mediaType.slice(1);
+    const icons = {
+      movies: '🎬',
+      books: '📚', 
+      anime: '🎌',
+      tv: '📺',
+      planned: '📋'
+    };
+    
+    let message, linkText, linkHref;
+    
+    if (mediaType === 'planned') {
+      message = 'No items planned to watch/read yet';
+      linkText = 'Browse Media';
+      linkHref = '/search';
+    } else {
+      message = `No ${mediaTypeDisplay} in your collection yet`;
+      linkText = `Browse ${mediaTypeDisplay}`;
+      linkHref = `/${mediaType === 'tv' ? 'movies' : mediaType}`;
+    }
+    
+    grid.innerHTML = `
+      <div class="col-span-full text-center py-8">
+        <div class="text-4xl mb-2">${icons[mediaType] || '📚'}</div>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">${message}</p>
+        <a href="${linkHref}" class="inline-flex items-center px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors">
+          ${linkText}
+        </a>
+      </div>
+    `;
+  }
+
+  function showErrorState(grid, mediaType) {
+    grid.innerHTML = `
+      <div class="col-span-full text-center py-8">
+        <div class="text-4xl mb-2">⚠️</div>
+        <p class="text-gray-500 dark:text-gray-400 mb-4">Failed to load ${mediaType}</p>
+        <button onclick="loadMediaForTab('${mediaType}')" class="inline-flex items-center px-4 py-2 bg-lime-600 text-white rounded-lg hover:bg-lime-700 transition-colors">
+          Try Again
+        </button>
+      </div>
+    `;
+  }
+
+  function getStatusColor(status) {
+    const colors = {
+      'completed': 'bg-green-500 text-white',
+      'watching': 'bg-blue-500 text-white',
+      'plan_to_watch': 'bg-yellow-500 text-white',
+      'on_hold': 'bg-orange-500 text-white',
+      'dropped': 'bg-red-500 text-white'
+    };
+    return colors[status] || 'bg-gray-500 text-white';
+  }
+
+  function getStatusLabel(status) {
+    const labels = {
+      'completed': 'Completed',
+      'watching': 'Watching',
+      'plan_to_watch': 'Planned',
+      'on_hold': 'On Hold',
+      'dropped': 'Dropped'
+    };
+    return labels[status] || status;
+  }
+
+  async function refreshStats() {
+    try {
+      const response = await fetch('/api/user/stats');
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const stats = result.data;
+        
+        // Update main stats
+        const totalItemsElements = document.querySelectorAll('[data-stat="total"]');
+        totalItemsElements.forEach(el => el.textContent = stats.totalItems);
+        
+        const completedElements = document.querySelectorAll('[data-stat="completed"]');
+        completedElements.forEach(el => el.textContent = stats.completedItems);
+        
+        const watchingElements = document.querySelectorAll('[data-stat="watching"]');
+        watchingElements.forEach(el => el.textContent = stats.statusBreakdown.watching || 0);
+        
+        const plannedElements = document.querySelectorAll('[data-stat="planned"]');
+        plannedElements.forEach(el => el.textContent = stats.statusBreakdown.plan_to_watch || 0);
+        
+        // Update tab counts
+        const movieCountElements = document.querySelectorAll('[data-count="movies"]');
+        movieCountElements.forEach(el => el.textContent = stats.mediaTypeBreakdown.movie || 0);
+        
+        const bookCountElements = document.querySelectorAll('[data-count="books"]');
+        bookCountElements.forEach(el => el.textContent = stats.mediaTypeBreakdown.book || 0);
+        
+        const animeCountElements = document.querySelectorAll('[data-count="anime"]');
+        animeCountElements.forEach(el => el.textContent = stats.mediaTypeBreakdown.anime || 0);
+        
+        const tvCountElements = document.querySelectorAll('[data-count="tv"]');
+        tvCountElements.forEach(el => el.textContent = stats.mediaTypeBreakdown.tv || 0);
+      }
+    } catch (error) {
+      console.error('Error refreshing stats:', error);
+    }
+  }
+</script>
+
+<style>
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+  }
+
+  @media (max-width: 1024px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Enhanced hover effects */
+  .hover-lift {
+    transition:
+      transform 0.2s ease-in-out,
+      box-shadow 0.2s ease-in-out;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Gradient text effect */
+  .gradient-text {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Pulse animation for new user elements */
+  @keyframes pulse-subtle {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  .pulse-subtle {
+    animation: pulse-subtle 2s ease-in-out infinite;
+  }
+
+  /* Media tabs styling */
+  .media-tab-btn {
+    position: relative;
+    transition: all 0.2s ease;
+  }
+
+  .media-tab-btn:hover {
+    color: #3b82f6 !important;
+  }
+
+  .media-tab-content {
+    min-height: 200px;
+  }
+
+  #movies-grid,
+  #books-grid,
+  #anime-grid,
+  #tv-grid {
+    min-height: 150px;
+  }
+
+  /* Loading animation */
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+</style>

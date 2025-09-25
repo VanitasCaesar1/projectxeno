@@ -1,0 +1,189 @@
+---
+export interface Props {
+  rating?: number;
+  maxRating?: number;
+  readonly?: boolean;
+  size?: "sm" | "md" | "lg";
+  showValue?: boolean;
+  onRatingChange?: string; // JavaScript function name to call on change
+}
+
+const {
+  rating = 0,
+  maxRating = 10,
+  readonly = false,
+  size = "md",
+  showValue = false,
+  onRatingChange,
+} = Astro.props;
+
+const sizeClasses = {
+  sm: "w-4 h-4",
+  md: "w-5 h-5",
+  lg: "w-6 h-6",
+};
+
+const starSize = sizeClasses[size];
+
+// Generate stars array
+const stars = Array.from({ length: maxRating }, (_, i) => {
+  const starValue = i + 1;
+  const isFilled = starValue <= rating;
+  const isHalfFilled = starValue - 0.5 <= rating && starValue > rating;
+  
+  return {
+    value: starValue,
+    isFilled,
+    isHalfFilled,
+  };
+});
+---
+
+<div
+  class="rating-component flex items-center gap-1"
+  data-rating={rating}
+  data-max-rating={maxRating}
+>
+  <div class="stars flex gap-0.5" data-readonly={readonly}>
+    {stars.map((star) => (
+      <button
+        type="button"
+        class={`star ${starSize} ${readonly ? "cursor-default" : "cursor-pointer hover:scale-110"} transition-transform`}
+        data-value={star.value}
+        disabled={readonly}
+        aria-label={`Rate ${star.value} out of ${maxRating} stars`}
+      >
+        <svg
+          class={`w-full h-full ${star.isFilled ? "text-yellow-400" : star.isHalfFilled ? "text-yellow-200" : "text-gray-300"} ${!readonly && "hover:text-yellow-400"}`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      </button>
+    ))}
+  </div>
+
+  {showValue && (
+    <span class="rating-value text-sm text-gray-600 ml-2">
+      {rating > 0 ? `${rating}/${maxRating}` : "Not rated"}
+    </span>
+  )}
+</div>
+
+<script>
+  class RatingComponent {
+element: any;
+starsContainer: any;
+stars: any;
+readonly: boolean;
+currentRating: number;
+maxRating: number;
+onRatingChange: ((rating: number) => void) | null;
+    constructor(element) {
+      this.element = element;
+      this.starsContainer = element.querySelector(".stars");
+      this.stars = element.querySelectorAll(".star");
+      this.readonly = this.starsContainer?.dataset?.readonly === "true";
+      this.currentRating = parseInt(element.dataset.rating || "0") || 0;
+      this.maxRating = parseInt(element.dataset.maxRating || "10") || 10;
+      this.onRatingChange = element.dataset.onRatingChange ? 
+        (window as any)[element.dataset.onRatingChange] : null;
+
+      if (!this.readonly) {
+        this.bindEvents();
+      }
+    }
+
+    bindEvents() {
+      this.stars.forEach((star, index) => {
+        star.addEventListener("click", () => {
+          const rating = index + 1;
+          this.setRating(rating);
+        });
+
+        star.addEventListener("mouseenter", () => {
+          this.highlightStars(index + 1);
+        });
+      });
+
+      if (this.starsContainer) {
+        this.starsContainer.addEventListener("mouseleave", () => {
+          this.highlightStars(this.currentRating);
+        });
+      }
+    }
+
+    setRating(rating) {
+      this.currentRating = rating;
+      this.element.dataset.rating = rating.toString();
+      this.highlightStars(rating);
+
+      // Update rating value display if present
+      const valueDisplay = this.element.querySelector(".rating-value");
+      if (valueDisplay) {
+        valueDisplay.textContent =
+          rating > 0 ? `${rating}/${this.maxRating}` : "Not rated";
+      }
+
+      // Call callback if provided
+      if (this.onRatingChange && typeof this.onRatingChange === "function") {
+        this.onRatingChange(rating);
+      }
+
+      // Dispatch custom event
+      this.element.dispatchEvent(
+        new CustomEvent("ratingChange", {
+          detail: { rating, maxRating: this.maxRating },
+        })
+      );
+    }
+
+    highlightStars(rating) {
+      this.stars.forEach((star, index) => {
+        const svg = star.querySelector("svg");
+        if (svg) {
+          if (index < rating) {
+            svg.classList.remove("text-gray-300", "text-yellow-200");
+            svg.classList.add("text-yellow-400");
+          } else {
+            svg.classList.remove("text-yellow-400", "text-yellow-200");
+            svg.classList.add("text-gray-300");
+          }
+        }
+      });
+    }
+
+    getRating() {
+      return this.currentRating;
+    }
+  }
+
+  // Initialize all rating components
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".rating-component").forEach((element) => {
+      new RatingComponent(element);
+    });
+  });
+
+  // Make RatingComponent available globally
+  if (typeof window !== 'undefined') {
+    window.RatingComponent = RatingComponent;
+  }
+</script>
+
+<style>
+  .star:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .star:disabled {
+    cursor: default;
+  }
+
+  .star:not(:disabled):hover svg {
+    transform: scale(1.1);
+  }
+</style>

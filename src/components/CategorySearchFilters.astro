@@ -1,0 +1,600 @@
+---
+/**
+ * Category-specific search filters component
+ * Provides enhanced filtering capabilities for media category pages
+ */
+
+interface Props {
+  mediaType: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  initialFilters?: {
+    genres?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+    ratingFrom?: number;
+    ratingTo?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  };
+  showGenres?: boolean;
+  showYearRange?: boolean;
+  showRating?: boolean;
+  showSort?: boolean;
+  compact?: boolean;
+  onFiltersChange?: string; // JavaScript function name to call when filters change
+}
+
+const { 
+  mediaType,
+  initialFilters = {},
+  showGenres = true,
+  showYearRange = true,
+  showRating = true,
+  showSort = true,
+  compact = false,
+  onFiltersChange = 'handleCategoryFiltersChange'
+} = Astro.props;
+
+const currentYear = new Date().getFullYear();
+
+const sortOptions = [
+  { value: 'relevance', label: 'Relevance' },
+  { value: 'rating', label: 'Rating' },
+  { value: 'year', label: 'Year' },
+  { value: 'title', label: 'Title' },
+  { value: 'popularity', label: 'Popularity' }
+];
+
+// Media-specific genres
+const genresByType = {
+  movie: [
+    'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime', 
+    'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
+    'Music', 'Mystery', 'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
+  ],
+  tv: [
+    'Action & Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama',
+    'Family', 'Kids', 'Mystery', 'News', 'Reality', 'Sci-Fi & Fantasy', 
+    'Soap', 'Talk', 'War & Politics', 'Western'
+  ],
+  book: [
+    'Fiction', 'Non-Fiction', 'Mystery', 'Romance', 'Science Fiction', 'Fantasy',
+    'Biography', 'History', 'Self-Help', 'Business', 'Health', 'Travel',
+    'Children', 'Young Adult', 'Poetry', 'Drama'
+  ],
+  anime: [
+    'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mystery',
+    'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+    'Shounen', 'Shoujo', 'Seinen', 'Josei', 'Mecha', 'School', 'Military'
+  ],
+  manga: [
+    'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mystery',
+    'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+    'Shounen', 'Shoujo', 'Seinen', 'Josei', 'Mecha', 'School', 'Historical'
+  ]
+};
+
+const genres = genresByType[mediaType] || [];
+---
+
+<div class={`category-search-filters ${compact ? 'compact' : ''}`} data-media-type={mediaType}>
+  <div class="filters-header">
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {compact ? 'Filters' : 'Search Filters'}
+      </h3>
+      <div class="flex items-center gap-2">
+        <span class="filter-count hidden text-sm text-blue-600 dark:text-blue-400 font-medium">
+          <!-- Filter count will be updated by JavaScript -->
+        </span>
+        <button 
+          id="toggle-filters" 
+          class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+        >
+          <span class="toggle-text">{compact ? 'Show' : 'Hide Filters'}</span>
+          <svg class={`inline-block w-4 h-4 ml-1 transform transition-transform toggle-icon ${compact ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="filters-content" class={compact ? 'hidden' : ''}>
+    <div class={`filters-grid ${compact ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'} grid gap-4 mt-4`}>
+      
+      {/* Year Range Filter */}
+      {showYearRange && (
+        <div class="filter-group">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Release Year
+          </label>
+          <div class="flex gap-2">
+            <input
+              type="number"
+              id="year-from"
+              name="yearFrom"
+              placeholder="From"
+              min="1900"
+              max={currentYear}
+              value={initialFilters.yearFrom || ''}
+              class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <input
+              type="number"
+              id="year-to"
+              name="yearTo"
+              placeholder="To"
+              min="1900"
+              max={currentYear}
+              value={initialFilters.yearTo || ''}
+              class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Rating Range Filter */}
+      {showRating && (
+        <div class="filter-group">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Rating Range
+          </label>
+          <div class="flex gap-2">
+            <input
+              type="number"
+              id="rating-from"
+              name="ratingFrom"
+              placeholder="Min"
+              min="0"
+              max="10"
+              step="0.1"
+              value={initialFilters.ratingFrom || ''}
+              class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+            <input
+              type="number"
+              id="rating-to"
+              name="ratingTo"
+              placeholder="Max"
+              min="0"
+              max="10"
+              step="0.1"
+              value={initialFilters.ratingTo || ''}
+              class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Sort Options */}
+      {showSort && (
+        <div class="filter-group">
+          <label for="sort-by" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Sort By
+          </label>
+          <div class="flex gap-2">
+            <select 
+              id="sort-by" 
+              name="sortBy"
+              class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              {sortOptions.map(option => (
+                <option 
+                  value={option.value} 
+                  selected={initialFilters.sortBy === option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select 
+              id="sort-order" 
+              name="sortOrder"
+              class="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              title="Sort Order"
+            >
+              <option value="desc" selected={initialFilters.sortOrder === 'desc'}>↓ Desc</option>
+              <option value="asc" selected={initialFilters.sortOrder === 'asc'}>↑ Asc</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* Genres Filter */}
+    {showGenres && genres.length > 0 && (
+      <div class="filter-group mt-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Genres
+        </label>
+        <div class="genres-container">
+          <div class="genres-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-32 overflow-y-auto p-2 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800">
+            {genres.map(genre => (
+              <label class="inline-flex items-center text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1 transition-colors">
+                <input
+                  type="checkbox"
+                  name="genres"
+                  value={genre}
+                  checked={initialFilters.genres?.includes(genre)}
+                  class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 mr-2"
+                />
+                <span class="text-gray-700 dark:text-gray-300 select-none">{genre}</span>
+              </label>
+            ))}
+          </div>
+          <div class="genres-summary mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <span class="selected-count">0</span> of {genres.length} genres selected
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Action Buttons */}
+    <div class="filter-actions flex justify-between items-center mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+      <button
+        type="button"
+        id="clear-filters"
+        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 rounded-md transition-colors"
+      >
+        Clear All
+      </button>
+      
+      <div class="flex gap-2">
+        <button
+          type="button"
+          id="reset-to-defaults"
+          class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md transition-colors"
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          id="apply-filters"
+          class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+        >
+          Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface CategorySearchFilters {
+    genres?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+    ratingFrom?: number;
+    ratingTo?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  }
+
+  class CategorySearchFiltersComponent {
+    private container: HTMLElement;
+    private mediaType: string;
+    private toggleButton: HTMLElement;
+    private filtersContent: HTMLElement;
+    private isExpanded: boolean;
+    private onFiltersChange: string;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.mediaType = container.dataset.mediaType || '';
+      this.toggleButton = container.querySelector('#toggle-filters') as HTMLElement;
+      this.filtersContent = container.querySelector('#filters-content') as HTMLElement;
+      this.isExpanded = !this.filtersContent.classList.contains('hidden');
+      this.onFiltersChange = container.dataset.onFiltersChange || 'handleCategoryFiltersChange';
+      
+      this.init();
+    }
+
+    private init() {
+      // Toggle filters visibility
+      this.toggleButton?.addEventListener('click', this.toggleFilters.bind(this));
+      
+      // Apply filters button
+      const applyButton = this.container.querySelector('#apply-filters');
+      applyButton?.addEventListener('click', this.applyFilters.bind(this));
+      
+      // Clear filters button
+      const clearButton = this.container.querySelector('#clear-filters');
+      clearButton?.addEventListener('click', this.clearFilters.bind(this));
+      
+      // Reset to defaults button
+      const resetButton = this.container.querySelector('#reset-to-defaults');
+      resetButton?.addEventListener('click', this.resetToDefaults.bind(this));
+      
+      // Auto-apply filters on change (with debounce)
+      this.setupAutoApply();
+      
+      // Initialize genre counter
+      this.updateGenreCounter();
+      this.updateFilterCounter();
+    }
+
+    private toggleFilters() {
+      this.isExpanded = !this.isExpanded;
+      
+      if (this.isExpanded) {
+        this.filtersContent.classList.remove('hidden');
+        this.toggleButton.querySelector('.toggle-text')!.textContent = 'Hide Filters';
+        this.toggleButton.querySelector('.toggle-icon')!.classList.add('rotate-180');
+      } else {
+        this.filtersContent.classList.add('hidden');
+        this.toggleButton.querySelector('.toggle-text')!.textContent = 'Show Filters';
+        this.toggleButton.querySelector('.toggle-icon')!.classList.remove('rotate-180');
+      }
+    }
+
+    private setupAutoApply() {
+      let debounceTimer: number;
+      
+      const inputs = this.container.querySelectorAll('input, select');
+      inputs.forEach(input => {
+        input.addEventListener('change', () => {
+          // Update counters immediately
+          if (input.getAttribute('name') === 'genres') {
+            this.updateGenreCounter();
+          }
+          this.updateFilterCounter();
+          
+          // Debounce the actual filter application
+          clearTimeout(debounceTimer);
+          debounceTimer = window.setTimeout(() => {
+            this.applyFilters();
+          }, 500);
+        });
+      });
+    }
+
+    private getFilters(): CategorySearchFilters {
+      const filters: CategorySearchFilters = {};
+      
+      // Year range
+      const yearFrom = parseInt((this.container.querySelector('#year-from') as HTMLInputElement)?.value || '');
+      const yearTo = parseInt((this.container.querySelector('#year-to') as HTMLInputElement)?.value || '');
+      if (!isNaN(yearFrom)) filters.yearFrom = yearFrom;
+      if (!isNaN(yearTo)) filters.yearTo = yearTo;
+      
+      // Rating range
+      const ratingFrom = parseFloat((this.container.querySelector('#rating-from') as HTMLInputElement)?.value || '');
+      const ratingTo = parseFloat((this.container.querySelector('#rating-to') as HTMLInputElement)?.value || '');
+      if (!isNaN(ratingFrom)) filters.ratingFrom = ratingFrom;
+      if (!isNaN(ratingTo)) filters.ratingTo = ratingTo;
+      
+      // Sort options
+      const sortBy = (this.container.querySelector('#sort-by') as HTMLSelectElement)?.value;
+      const sortOrder = (this.container.querySelector('#sort-order') as HTMLSelectElement)?.value;
+      if (sortBy && sortBy !== 'relevance') filters.sortBy = sortBy;
+      if (sortOrder && sortOrder !== 'desc') filters.sortOrder = sortOrder;
+      
+      // Genres
+      const genreCheckboxes = this.container.querySelectorAll('input[name="genres"]:checked') as NodeListOf<HTMLInputElement>;
+      if (genreCheckboxes.length > 0) {
+        filters.genres = Array.from(genreCheckboxes).map(cb => cb.value);
+      }
+      
+      return filters;
+    }
+
+    private applyFilters() {
+      const filters = this.getFilters();
+      
+      // Dispatch custom event with filters
+      const event = new CustomEvent('categoryFiltersChanged', {
+        detail: { filters, mediaType: this.mediaType },
+        bubbles: true
+      });
+      
+      this.container.dispatchEvent(event);
+      
+      // Call global handler if it exists
+      if (typeof (window as any)[this.onFiltersChange] === 'function') {
+        (window as any)[this.onFiltersChange](filters, this.mediaType);
+      }
+    }
+
+    private clearFilters() {
+      // Reset all form inputs
+      const inputs = this.container.querySelectorAll('input, select') as NodeListOf<HTMLInputElement | HTMLSelectElement>;
+      inputs.forEach(input => {
+        if (input.type === 'checkbox') {
+          (input as HTMLInputElement).checked = false;
+        } else if (input.tagName === 'SELECT') {
+          (input as HTMLSelectElement).selectedIndex = 0;
+        } else {
+          (input as HTMLInputElement).value = '';
+        }
+      });
+      
+      // Update counters
+      this.updateGenreCounter();
+      this.updateFilterCounter();
+      
+      // Apply cleared filters
+      this.applyFilters();
+    }
+
+    private resetToDefaults() {
+      // Reset to default values
+      const sortBy = this.container.querySelector('#sort-by') as HTMLSelectElement;
+      const sortOrder = this.container.querySelector('#sort-order') as HTMLSelectElement;
+      
+      if (sortBy) sortBy.value = 'relevance';
+      if (sortOrder) sortOrder.value = 'desc';
+      
+      // Clear other inputs
+      const inputs = this.container.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
+      inputs.forEach(input => {
+        if (input.type === 'checkbox') {
+          input.checked = false;
+        } else {
+          input.value = '';
+        }
+      });
+      
+      // Update counters
+      this.updateGenreCounter();
+      this.updateFilterCounter();
+      
+      // Apply defaults
+      this.applyFilters();
+    }
+
+    private updateGenreCounter() {
+      const genreCheckboxes = this.container.querySelectorAll('input[name="genres"]:checked') as NodeListOf<HTMLInputElement>;
+      const counter = this.container.querySelector('.selected-count');
+      if (counter) {
+        counter.textContent = genreCheckboxes.length.toString();
+      }
+    }
+
+    private updateFilterCounter() {
+      const filters = this.getFilters();
+      const activeCount = Object.keys(filters).filter(key => {
+        const value = filters[key as keyof CategorySearchFilters];
+        return value !== undefined && value !== null && value !== '' && 
+               (!Array.isArray(value) || value.length > 0);
+      }).length;
+      
+      const counterElement = this.container.querySelector('.filter-count');
+      if (counterElement) {
+        if (activeCount > 0) {
+          counterElement.textContent = `${activeCount} filter${activeCount === 1 ? '' : 's'} active`;
+          counterElement.classList.remove('hidden');
+        } else {
+          counterElement.classList.add('hidden');
+        }
+      }
+    }
+
+    // Public methods for external control
+    setFilters(filters: CategorySearchFilters) {
+      // Set year range
+      if (filters.yearFrom !== undefined) {
+        const yearFromInput = this.container.querySelector('#year-from') as HTMLInputElement;
+        if (yearFromInput) yearFromInput.value = filters.yearFrom.toString();
+      }
+      
+      if (filters.yearTo !== undefined) {
+        const yearToInput = this.container.querySelector('#year-to') as HTMLInputElement;
+        if (yearToInput) yearToInput.value = filters.yearTo.toString();
+      }
+      
+      // Set rating range
+      if (filters.ratingFrom !== undefined) {
+        const ratingFromInput = this.container.querySelector('#rating-from') as HTMLInputElement;
+        if (ratingFromInput) ratingFromInput.value = filters.ratingFrom.toString();
+      }
+      
+      if (filters.ratingTo !== undefined) {
+        const ratingToInput = this.container.querySelector('#rating-to') as HTMLInputElement;
+        if (ratingToInput) ratingToInput.value = filters.ratingTo.toString();
+      }
+      
+      // Set sort options
+      if (filters.sortBy !== undefined) {
+        const sortBySelect = this.container.querySelector('#sort-by') as HTMLSelectElement;
+        if (sortBySelect) sortBySelect.value = filters.sortBy;
+      }
+      
+      if (filters.sortOrder !== undefined) {
+        const sortOrderSelect = this.container.querySelector('#sort-order') as HTMLSelectElement;
+        if (sortOrderSelect) sortOrderSelect.value = filters.sortOrder;
+      }
+      
+      // Set genres
+      const genreCheckboxes = this.container.querySelectorAll('input[name="genres"]') as NodeListOf<HTMLInputElement>;
+      genreCheckboxes.forEach(checkbox => {
+        checkbox.checked = filters.genres?.includes(checkbox.value) || false;
+      });
+      
+      // Update counters
+      this.updateGenreCounter();
+      this.updateFilterCounter();
+    }
+
+    getActiveFilters(): CategorySearchFilters {
+      return this.getFilters();
+    }
+  }
+
+  // Initialize all category search filter components
+  function initializeCategorySearchFilters() {
+    const containers = document.querySelectorAll('.category-search-filters');
+    containers.forEach(container => {
+      new CategorySearchFiltersComponent(container as HTMLElement);
+    });
+  }
+
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeCategorySearchFilters);
+  } else {
+    initializeCategorySearchFilters();
+  }
+
+  // Export for manual initialization
+  (window as any).CategorySearchFiltersComponent = CategorySearchFiltersComponent;
+  (window as any).initializeCategorySearchFilters = initializeCategorySearchFilters;
+</script>
+
+<style>
+  .rotate-180 {
+    transform: rotate(180deg);
+  }
+  
+  .filter-group label {
+    user-select: none;
+  }
+  
+  .filter-group input[type="checkbox"] {
+    cursor: pointer;
+  }
+  
+  .filter-group input[type="checkbox"] + span {
+    cursor: pointer;
+  }
+
+  .genres-grid {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+  }
+
+  .genres-grid::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .genres-grid::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 3px;
+  }
+
+  .genres-grid::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+  }
+
+  .genres-grid::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+  }
+
+  .compact .filters-grid {
+    gap: 3rem;
+  }
+
+  .compact .filter-group {
+    margin-bottom: 0.5rem;
+  }
+
+  @media (max-width: 640px) {
+    .filters-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .genres-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

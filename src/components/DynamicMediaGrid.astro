@@ -1,0 +1,979 @@
+---
+import SkeletonLoader from './ui/SkeletonLoader.astro';
+import { getMediaConfig, getDefaultSections } from '../lib/mediaConfig';
+import type { ContentSection } from '../lib/mediaConfig';
+
+interface Props {
+  mediaType: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  initialContent?: SearchResult[];
+  showSearch?: boolean;
+  showFilters?: boolean;
+  sections?: ContentSection[];
+  class?: string;
+}
+
+interface SearchResult {
+  id: string;
+  title: string;
+  type: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  year?: number;
+  poster?: string;
+  description?: string;
+  rating?: number;
+  source: 'tmdb' | 'openlibrary' | 'jikan';
+}
+
+const { 
+  mediaType, 
+  showSearch = true, 
+  showFilters = true, 
+  sections = [],
+  class: className = ''
+} = Astro.props;
+
+// Get media type configuration
+const config = getMediaConfig(mediaType);
+
+// Check if user is logged in (this would be passed from the parent page)
+// For now, we'll assume user status is available in a global variable or cookie
+const isLoggedIn = false; // This should be determined by the parent component
+
+// Default sections if none provided
+const contentSections = sections.length > 0 ? sections : getDefaultSections(mediaType, isLoggedIn);
+---
+
+<div class={`dynamic-media-grid ${className}`} data-media-type={mediaType}>
+  <!-- Header Section -->
+  <div class="grid-header" role="banner">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100" id="page-title">{config.title}</h1>
+      
+      {showSearch && (
+        <div class="search-container flex-1 max-w-md" role="search">
+          <div class="relative">
+            <label for="media-search" class="sr-only">Search {config.title.toLowerCase()}</label>
+            <input 
+              type="text" 
+              id="media-search"
+              class="search-input w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder={config.placeholder}
+              autocomplete="off"
+              aria-describedby="search-help"
+              aria-expanded="false"
+              aria-haspopup="listbox"
+            />
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none" aria-hidden="true">
+              <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div class="search-loading absolute inset-y-0 right-0 pr-3 flex items-center hidden" aria-hidden="true">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            </div>
+            <div id="search-help" class="sr-only">Type to search for {config.title.toLowerCase()}. Results will appear below as you type.</div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <!-- Filters Section -->
+    {showFilters && (
+      <div class="filters-container mb-6" role="region" aria-labelledby="filters-heading">
+        <h2 id="filters-heading" class="sr-only">Filter options</h2>
+        <div class="flex flex-wrap gap-4 items-center">
+          <div class="filter-group">
+            <label for="year-from" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Year Range</label>
+            <div class="flex gap-2" role="group" aria-labelledby="year-range-label">
+              <span id="year-range-label" class="sr-only">Year range from and to</span>
+              <input 
+                type="number" 
+                id="year-from"
+                class="filter-input w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="From"
+                min="1900"
+                max="2030"
+                aria-label="Year from"
+              />
+              <input 
+                type="number" 
+                id="year-to"
+                class="filter-input w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="To"
+                min="1900"
+                max="2030"
+                aria-label="Year to"
+              />
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label for="min-rating" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Rating</label>
+            <input 
+              type="number" 
+              id="min-rating"
+              class="filter-input w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="0.0"
+              min="0"
+              max="10"
+              step="0.1"
+              aria-describedby="rating-help"
+            />
+            <div id="rating-help" class="sr-only">Enter minimum rating from 0 to 10</div>
+          </div>
+
+          <div class="filter-actions flex gap-2 ml-auto">
+            <button 
+              id="apply-filters"
+              class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+              aria-describedby="apply-filters-help"
+            >
+              Apply Filters
+            </button>
+            <div id="apply-filters-help" class="sr-only">Apply the selected filters to the content</div>
+            <button 
+              id="clear-filters"
+              class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
+              aria-describedby="clear-filters-help"
+            >
+              Clear Filters
+            </button>
+            <div id="clear-filters-help" class="sr-only">Clear all applied filters</div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <!-- Section Navigation -->
+    <div class="section-nav mb-6" role="tablist" aria-labelledby="sections-heading">
+      <h2 id="sections-heading" class="sr-only">Content sections</h2>
+      <div class="flex flex-wrap gap-2">
+        {contentSections.map((section, index) => (
+          <button 
+            class={`section-btn px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${index === 0 ? 'active' : ''}`}
+            data-section={section.id}
+            data-section-type={section.type}
+            data-section-query={section.query || ''}
+            role="tab"
+            aria-selected={index === 0 ? 'true' : 'false'}
+            aria-controls={`section-${section.id}`}
+            id={`tab-${section.id}`}
+            tabindex={index === 0 ? '0' : '-1'}
+          >
+            {section.title}
+          </button>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Area -->
+  <div class="content-area">
+    <!-- Search Results -->
+    <div class="search-results hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Search Results</h2>
+        <button 
+          id="clear-search"
+          class="text-blue-600 hover:text-blue-700 text-sm font-medium"
+        >
+          Clear Search
+        </button>
+      </div>
+      <div class="results-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <!-- Search results will be populated here -->
+      </div>
+      <div class="search-pagination mt-6">
+        <!-- Infinite scroll component for search results -->
+      </div>
+    </div>
+
+    <!-- Section Content -->
+    <div class="section-content">
+      {contentSections.map((section, index) => (
+        <div 
+          class={`content-section ${index === 0 ? '' : 'hidden'} mb-8`}
+          data-section={section.id}
+          data-section-type={section.type}
+          data-section-query={section.query || ''}
+          data-media-type={mediaType}
+        >
+          <div class="section-header mb-4">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{section.title}</h2>
+          </div>
+          
+          <!-- Loading State -->
+          <div class="section-loading">
+            <SkeletonLoader variant="media-grid" count={8} />
+          </div>
+
+          <!-- Content Grid -->
+          <div class="section-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Content will be populated by JavaScript -->
+          </div>
+
+          <!-- Error State -->
+          <div class="section-error hidden">
+            <div class="text-center py-12">
+              <div class="text-gray-400 mb-4">
+                <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Failed to load content</h3>
+              <p class="text-gray-500 dark:text-gray-400 mb-4">There was an error loading this section.</p>
+              <button 
+                class="retry-section px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200"
+                data-section={section.id}
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div class="section-empty hidden">
+            <div class="text-center py-12">
+              <div class="text-gray-400 mb-4">
+                <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.562M15 6.306a7.962 7.962 0 00-6 0m6 0a7.962 7.962 0 616 2.292 8.05 8.05 0 01.671 3.402" />
+                </svg>
+              </div>
+              <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No {section.title.toLowerCase()} found</h3>
+              <p class="text-gray-500 dark:text-gray-400">Check back later for new content.</p>
+            </div>
+          </div>
+
+          <!-- Infinite Scroll -->
+          <div class="section-infinite-scroll">
+            <div class="infinite-scroll-container">
+              <!-- Loading indicator -->
+              <div class="section-loading-more hidden">
+                <div class="flex justify-center items-center py-8">
+                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span class="ml-2 text-gray-600">Loading more...</span>
+                </div>
+              </div>
+
+              <!-- Load more trigger -->
+              <div class="load-more-trigger hidden" data-threshold="200">
+                <button 
+                  class="load-more-btn w-full py-3 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-200"
+                  onclick={`loadMoreSection_${section.id}()`}
+                >
+                  Load More
+                </button>
+              </div>
+
+              <!-- End of results indicator -->
+              <div class="end-of-results hidden">
+                <div class="text-center py-8 text-gray-500">
+                  <p>You've reached the end of the results</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state hidden">
+      <div class="text-center py-12">
+        <div class="text-gray-400 mb-4">
+          <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-1.009-5.824-2.562M15 6.306a7.962 7.962 0 00-6 0m6 0a7.962 7.962 0 616 2.292 8.05 8.05 0 01.671 3.402" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No results found</h3>
+        <p class="text-gray-500 dark:text-gray-400">Try adjusting your search or filters.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .section-btn {
+    @apply bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300;
+  }
+
+  .section-btn.active {
+    @apply bg-blue-600 text-white;
+  }
+
+  .section-btn:hover:not(.active) {
+    @apply bg-gray-200 dark:bg-gray-600;
+  }
+
+  .filter-input:focus {
+    @apply ring-2 ring-blue-500 border-transparent;
+  }
+
+  .search-input:focus {
+    @apply ring-2 ring-blue-500 border-transparent;
+  }
+
+  .skeleton-card {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 640px) {
+    .grid-header {
+      @apply px-4;
+    }
+    
+    .filters-container {
+      @apply px-4;
+    }
+    
+    .section-nav {
+      @apply px-4;
+    }
+    
+    .content-area {
+      @apply px-4;
+    }
+  }
+</style>
+
+<script>
+  // Simple initialization to prevent reload loops
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('DynamicMediaGrid: DOM loaded, initializing...');
+    
+    const gridContainers = document.querySelectorAll('.dynamic-media-grid');
+    console.log(`Found ${gridContainers.length} grid containers`);
+    
+    gridContainers.forEach((container, index) => {
+      console.log(`Initializing grid ${index + 1}`);
+      try {
+        initializeMediaGrid(container as HTMLElement);
+      } catch (error) {
+        console.error(`Failed to initialize grid ${index + 1}:`, error);
+      }
+    });
+  });
+
+  function initializeMediaGrid(container: HTMLElement) {
+    const mediaType = container.dataset.mediaType || 'movie';
+    console.log(`Initializing media grid for type: ${mediaType}`);
+    
+    // Simple section switching
+    const sectionBtns = container.querySelectorAll('.section-btn');
+    sectionBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const button = e.target as HTMLElement;
+        const sectionId = button.dataset.section || '';
+        switchSection(container, sectionId);
+      });
+    });
+
+    // Load initial section
+    const firstBtn = container.querySelector('.section-btn') as HTMLElement;
+    if (firstBtn) {
+      const firstSectionId = firstBtn.dataset.section || '';
+      switchSection(container, firstSectionId);
+    }
+
+    // Simple search functionality
+    const searchInput = container.querySelector('#media-search') as HTMLInputElement;
+    if (searchInput) {
+      let searchTimeout: number;
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = (e.target as HTMLInputElement).value.trim();
+        
+        searchTimeout = window.setTimeout(() => {
+          if (query) {
+            performSearch(container, query, mediaType);
+          } else {
+            showSectionContent(container);
+          }
+        }, 300);
+      });
+    }
+
+    // Clear search button
+    const clearSearchBtn = container.querySelector('#clear-search');
+    if (clearSearchBtn) {
+      clearSearchBtn.addEventListener('click', () => {
+        const searchInput = container.querySelector('#media-search') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.value = '';
+          showSectionContent(container);
+        }
+      });
+    }
+
+    // Retry buttons
+    const retryBtns = container.querySelectorAll('.retry-section');
+    retryBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const button = e.target as HTMLElement;
+        const sectionId = button.dataset.section || '';
+        if (sectionId) {
+          loadSectionData(container, sectionId, 1, false);
+        }
+      });
+    });
+
+    // Filter buttons
+    const applyFiltersBtn = container.querySelector('#apply-filters');
+    const clearFiltersBtn = container.querySelector('#clear-filters');
+
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener('click', () => {
+        // For now, just reload the current section
+        // In a full implementation, this would apply the actual filters
+        const activeBtn = container.querySelector('.section-btn.active') as HTMLElement;
+        if (activeBtn) {
+          const sectionId = activeBtn.dataset.section || '';
+          loadSectionData(container, sectionId, 1, false);
+        }
+      });
+    }
+
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', () => {
+        // Clear filter inputs
+        const yearFrom = container.querySelector('#year-from') as HTMLInputElement;
+        const yearTo = container.querySelector('#year-to') as HTMLInputElement;
+        const minRating = container.querySelector('#min-rating') as HTMLInputElement;
+
+        if (yearFrom) yearFrom.value = '';
+        if (yearTo) yearTo.value = '';
+        if (minRating) minRating.value = '';
+
+        // Reload current section
+        const activeBtn = container.querySelector('.section-btn.active') as HTMLElement;
+        if (activeBtn) {
+          const sectionId = activeBtn.dataset.section || '';
+          loadSectionData(container, sectionId, 1, false);
+        }
+      });
+    }
+  }
+
+  function switchSection(container: HTMLElement, sectionId: string) {
+    console.log(`Switching to section: ${sectionId}`);
+    
+    // Update button states
+    const buttons = container.querySelectorAll('.section-btn');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-selected', 'false');
+    });
+
+    const activeBtn = container.querySelector(`.section-btn[data-section="${sectionId}"]`);
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      activeBtn.setAttribute('aria-selected', 'true');
+    }
+
+    // Hide all sections
+    const sections = container.querySelectorAll('.content-section');
+    sections.forEach(section => section.classList.add('hidden'));
+
+    // Show target section
+    const targetSection = container.querySelector(`.content-section[data-section="${sectionId}"]`);
+    if (targetSection) {
+      targetSection.classList.remove('hidden');
+      loadSectionData(container, sectionId, 1, false);
+    }
+  }
+
+  async function loadSectionData(container: HTMLElement, sectionId: string, page: number = 1, append: boolean = false) {
+    const section = container.querySelector(`.content-section[data-section="${sectionId}"]`);
+    if (!section) {
+      console.error(`Section not found: ${sectionId}`);
+      return;
+    }
+
+    const mediaType = container.dataset.mediaType || 'movie';
+    const sectionType = section.getAttribute('data-section-type') || 'popular';
+    
+    // Show loading
+    if (!append) {
+      showSectionLoading(section, true);
+    } else {
+      showSectionLoadingMore(section, true);
+    }
+    
+    try {
+      // Get default query for section type
+      const query = getDefaultQuery(mediaType, sectionType);
+      
+      const searchParams = new URLSearchParams({
+        q: query,
+        type: mediaType,
+        page: page.toString()
+      });
+
+      console.log(`Loading section data: ${sectionId}, query: ${query}, page: ${page}`);
+      const response = await fetch(`/api/search?${searchParams}`);
+      const data = await response.json();
+
+      if (data.success && data.data.results) {
+        if (append) {
+          appendSectionResults(section, data.data.results);
+        } else {
+          displaySectionResults(section, data.data.results);
+        }
+        
+        // Set up infinite scroll for this section
+        setupInfiniteScroll(section, sectionId, page, data.data.results.length);
+      } else {
+        showSectionError(section, data.error?.message || 'Failed to load content');
+      }
+    } catch (error) {
+      console.error(`Error loading section ${sectionId}:`, error);
+      showSectionError(section, 'Network error occurred');
+    } finally {
+      if (!append) {
+        showSectionLoading(section, false);
+      } else {
+        showSectionLoadingMore(section, false);
+      }
+    }
+  }
+
+  // Add to list functionality
+  async function handleAddToList(result: any) {
+    console.log('Adding to list:', result.title);
+    
+    // Check if user is logged in first
+    try {
+      const statusResponse = await fetch('/api/user/status');
+      const statusData = await statusResponse.json();
+      
+      if (!statusData.success || !statusData.data.isAuthenticated) {
+        const shouldRedirect = confirm(
+          `Please log in to add "${result.title}" to your list. Would you like to go to the login page?`
+        );
+        
+        if (shouldRedirect) {
+          sessionStorage.setItem('redirectAfterLogin', window.location.href);
+          window.location.href = '/login';
+        }
+        return;
+      }
+
+      // User is logged in, proceed with adding to list
+      const response = await fetch('/api/user/media', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          externalId: result.id,
+          mediaType: result.type,
+          title: result.title,
+          description: result.description,
+          posterUrl: result.poster,
+          releaseDate: result.year ? `${result.year}-01-01` : undefined,
+          genres: [],
+          metadata: { 
+            source: result.source, 
+            rating: result.rating || 0, 
+            year: result.year 
+          },
+          status: 'plan_to_watch'
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Show success message
+        alert(`"${result.title}" has been added to your list!`);
+        
+        // Update the button to show it's been added
+        const buttons = document.querySelectorAll(`[data-media-id="${result.id}"]`);
+        buttons.forEach(button => {
+          button.textContent = 'Added ✓';
+          button.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+          button.classList.add('bg-green-600', 'hover:bg-green-700');
+          (button as HTMLButtonElement).disabled = true;
+        });
+      } else {
+        throw new Error(data.error?.message || 'Failed to add to list');
+      }
+    } catch (error) {
+      console.error('Error adding to list:', error);
+      alert(`Failed to add "${result.title}" to your list. Please try again.`);
+    }
+  }
+
+  function getDefaultQuery(mediaType: string, sectionType: string): string {
+    const queries = {
+      movie: {
+        popular: 'action',
+        trending: 'marvel',
+        top_rated: 'oscar'
+      },
+      tv: {
+        popular: 'drama',
+        trending: 'netflix',
+        top_rated: 'emmy'
+      },
+      book: {
+        popular: 'bestseller',
+        trending: 'fiction',
+        top_rated: 'classic'
+      },
+      anime: {
+        popular: 'shounen',
+        trending: 'seasonal',
+        top_rated: 'myanimelist'
+      },
+      manga: {
+        popular: 'shounen',
+        trending: 'weekly',
+        top_rated: 'award'
+      }
+    };
+
+    return queries[mediaType as keyof typeof queries]?.[sectionType as keyof typeof queries.movie] || 'popular';
+  }
+
+  async function performSearch(container: HTMLElement, query: string, mediaType: string) {
+    console.log(`Performing search: ${query} for ${mediaType}`);
+    
+    showSearchResults(container);
+    showSearchLoading(container, true);
+
+    try {
+      const searchParams = new URLSearchParams({
+        q: query,
+        type: mediaType,
+        page: '1'
+      });
+
+      const response = await fetch(`/api/search?${searchParams}`);
+      const data = await response.json();
+
+      if (data.success && data.data.results) {
+        displaySearchResults(container, data.data.results);
+      } else {
+        showSearchError(container, data.error?.message || 'Search failed');
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      showSearchError(container, 'Network error occurred');
+    } finally {
+      showSearchLoading(container, false);
+    }
+  }
+
+  function displaySectionResults(section: Element, results: any[]) {
+    const grid = section.querySelector('.section-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    
+    if (results.length === 0) {
+      showSectionEmpty(section);
+      return;
+    }
+
+    results.forEach(result => {
+      const card = createMediaCard(result);
+      grid.appendChild(card);
+    });
+
+    grid.classList.remove('hidden');
+    hideSectionEmpty(section);
+    hideSectionError(section);
+  }
+
+  function displaySearchResults(container: HTMLElement, results: any[]) {
+    const resultsGrid = container.querySelector('.results-grid');
+    if (!resultsGrid) return;
+
+    resultsGrid.innerHTML = '';
+
+    if (results.length === 0) {
+      resultsGrid.innerHTML = `
+        <div class="col-span-full text-center py-12">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No results found</h3>
+          <p class="text-gray-500 dark:text-gray-400">Try a different search term.</p>
+        </div>
+      `;
+      return;
+    }
+
+    results.forEach(result => {
+      const card = createMediaCard(result);
+      resultsGrid.appendChild(card);
+    });
+  }
+
+  function createMediaCard(result: any): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'media-card bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer';
+    
+    const posterUrl = result.poster || '/placeholder-poster.svg';
+    const title = result.title || 'Unknown Title';
+    const year = result.year ? `(${result.year})` : '';
+    const rating = result.rating ? `⭐ ${result.rating.toFixed(1)}` : '';
+    const description = result.description ? result.description.substring(0, 150) + '...' : '';
+    
+    // Create the detail page URL
+    const detailUrl = `/media/${result.type}/${result.id}`;
+
+    card.innerHTML = `
+      <div class="relative">
+        <img 
+          src="${posterUrl}" 
+          alt="${title} poster"
+          class="w-full h-64 object-cover rounded-t-lg"
+          loading="lazy"
+          onerror="this.src='/placeholder-poster.svg'"
+        />
+        ${rating ? `
+          <div class="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
+            ${rating}
+          </div>
+        ` : ''}
+      </div>
+      <div class="p-4">
+        <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">${title} ${year}</h3>
+        ${description ? `<p class="text-sm text-gray-600 dark:text-gray-400 mb-3">${description}</p>` : ''}
+        <button 
+          class="add-to-list-btn w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors duration-200"
+          data-media-id="${result.id}"
+          data-media-title="${title}"
+          data-media-type="${result.type}"
+          data-media-poster="${posterUrl}"
+          data-media-year="${result.year || ''}"
+          data-media-source="${result.source}"
+          data-media-description="${result.description || ''}"
+        >
+          Add to List
+        </button>
+      </div>
+    `;
+
+    // Add click handler for the add to list button
+    const addButton = card.querySelector('.add-to-list-btn');
+    if (addButton) {
+      addButton.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent card click
+        handleAddToList(result);
+      });
+    }
+
+    // Add click handler for the entire card to navigate to detail page
+    card.addEventListener('click', (e) => {
+      // Don't navigate if clicking on buttons or interactive elements
+      const isInteractiveElement = (e.target as HTMLElement).closest(
+        "button, a, .add-to-list-btn"
+      );
+      if (isInteractiveElement) return;
+
+      // Navigate to detail page
+      window.location.href = detailUrl;
+    });
+
+    return card;
+  }
+
+  function showSectionLoading(section: Element, show: boolean) {
+    const loading = section.querySelector('.section-loading');
+    const grid = section.querySelector('.section-grid');
+
+    if (show) {
+      if (loading) loading.classList.remove('hidden');
+      if (grid) grid.classList.add('hidden');
+    } else {
+      if (loading) loading.classList.add('hidden');
+    }
+  }
+
+  function showSectionError(section: Element, message: string) {
+    const error = section.querySelector('.section-error');
+    const grid = section.querySelector('.section-grid');
+    const loading = section.querySelector('.section-loading');
+
+    if (error) {
+      error.classList.remove('hidden');
+      const errorMessage = error.querySelector('p');
+      if (errorMessage) {
+        errorMessage.textContent = message;
+      }
+    }
+    if (grid) grid.classList.add('hidden');
+    if (loading) loading.classList.add('hidden');
+  }
+
+  function hideSectionError(section: Element) {
+    const error = section.querySelector('.section-error');
+    if (error) error.classList.add('hidden');
+  }
+
+  function showSectionEmpty(section: Element) {
+    const empty = section.querySelector('.section-empty');
+    const grid = section.querySelector('.section-grid');
+    const loading = section.querySelector('.section-loading');
+
+    if (empty) empty.classList.remove('hidden');
+    if (grid) grid.classList.add('hidden');
+    if (loading) loading.classList.add('hidden');
+  }
+
+  function hideSectionEmpty(section: Element) {
+    const empty = section.querySelector('.section-empty');
+    if (empty) empty.classList.add('hidden');
+  }
+
+  function showSearchResults(container: HTMLElement) {
+    const searchResults = container.querySelector('.search-results');
+    const sectionContent = container.querySelector('.section-content');
+    
+    if (searchResults) searchResults.classList.remove('hidden');
+    if (sectionContent) sectionContent.classList.add('hidden');
+  }
+
+  function showSectionContent(container: HTMLElement) {
+    const searchResults = container.querySelector('.search-results');
+    const sectionContent = container.querySelector('.section-content');
+    
+    if (searchResults) searchResults.classList.add('hidden');
+    if (sectionContent) sectionContent.classList.remove('hidden');
+  }
+
+  function showSearchLoading(container: HTMLElement, show: boolean) {
+    const loadingIndicator = container.querySelector('.search-loading');
+    if (loadingIndicator) {
+      if (show) {
+        loadingIndicator.classList.remove('hidden');
+      } else {
+        loadingIndicator.classList.add('hidden');
+      }
+    }
+  }
+
+  function showSearchError(container: HTMLElement, message: string) {
+    const resultsGrid = container.querySelector('.results-grid');
+    if (!resultsGrid) return;
+
+    resultsGrid.innerHTML = `
+      <div class="col-span-full text-center py-12">
+        <div class="text-gray-400 mb-4">
+          <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Search Error</h3>
+        <p class="text-gray-500 dark:text-gray-400">${message}</p>
+      </div>
+    `;
+  }
+
+  function appendSectionResults(section: Element, results: any[]) {
+    const grid = section.querySelector('.section-grid');
+    if (!grid) return;
+
+    results.forEach(result => {
+      const card = createMediaCard(result);
+      card.classList.add('new-content'); // For animation
+      grid.appendChild(card);
+    });
+  }
+
+  function showSectionLoadingMore(section: Element, show: boolean) {
+    const loadingMore = section.querySelector('.section-loading-more');
+    if (show) {
+      if (loadingMore) loadingMore.classList.remove('hidden');
+    } else {
+      if (loadingMore) loadingMore.classList.add('hidden');
+    }
+  }
+
+  function setupInfiniteScroll(section: Element, sectionId: string, currentPage: number, resultsCount: number) {
+    const infiniteScrollContainer = section.querySelector('.section-infinite-scroll');
+    const loadMoreTrigger = section.querySelector('.load-more-trigger');
+    const endOfResults = section.querySelector('.end-of-results');
+    
+    if (!infiniteScrollContainer) return;
+
+    // Store current page data
+    section.setAttribute('data-current-page', currentPage.toString());
+    
+    // If we got fewer results than expected, we've reached the end
+    if (resultsCount < 20) {
+      if (loadMoreTrigger) loadMoreTrigger.classList.add('hidden');
+      if (endOfResults) endOfResults.classList.remove('hidden');
+      return;
+    }
+
+    // Show load more trigger
+    if (loadMoreTrigger) {
+      loadMoreTrigger.classList.remove('hidden');
+      
+      // Set up load more function
+      const loadMoreBtn = loadMoreTrigger.querySelector('.load-more-btn') as HTMLElement;
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => loadMoreForSection(sectionId));
+      }
+    }
+
+    // Set up intersection observer for automatic loading
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            loadMoreForSection(sectionId);
+            observer.disconnect(); // Disconnect after triggering
+          }
+        });
+      }, {
+        rootMargin: '200px 0px'
+      });
+
+      if (loadMoreTrigger) {
+        observer.observe(loadMoreTrigger);
+      }
+    }
+  }
+
+  async function loadMoreForSection(sectionId: string) {
+    const container = document.querySelector(`[data-media-type]`) as HTMLElement;
+    if (!container) return;
+
+    const section = container.querySelector(`.content-section[data-section="${sectionId}"]`);
+    if (!section) return;
+
+    const currentPage = parseInt(section.getAttribute('data-current-page') || '1');
+    const nextPage = currentPage + 1;
+
+    await loadSectionData(container, sectionId, nextPage, true);
+  }
+
+  // Make loadMoreForSection globally available
+  (window as any).loadMoreForSection = loadMoreForSection;
+</script>

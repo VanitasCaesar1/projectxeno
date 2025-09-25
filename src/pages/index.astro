@@ -1,17 +1,49 @@
 ---
 import Footer from "../components/Footer.astro";
 import Hero from "../components/Hero.astro";
+import NetflixHome from "../components/NetflixHome.astro";
 import Layout from "../layout/layout.astro";
 import Header from "../components/Header.astro";
+import StatusSelector from "../components/StatusSelector.astro";
+import { supabase } from '../lib/supabase';
 
+// Check if user is logged in
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+let isLoggedIn = false;
+let user: any = null;
+
+if (accessToken && refreshToken) {
+  try {
+    supabase.auth.setSession({
+      access_token: accessToken.value,
+      refresh_token: refreshToken.value,
+    });
+
+    const { data: { user: userData }, error } = await supabase.auth.getUser();
+    if (userData && !error) {
+      isLoggedIn = true;
+      user = userData;
+    }
+  } catch (error) {
+    console.error('Error checking auth status:', error);
+  }
+}
 ---
 
 <Layout>
 	<main>
 		<Header />
-		<div class="h-screen flex justify-center">
-			<Hero/>
-		</div>
+		{isLoggedIn ? (
+			<!-- Netflix-style home for logged in users -->
+			<NetflixHome />
+		) : (
+			<!-- Hero section for non-logged in users -->
+			<div class="h-screen flex justify-center">
+				<Hero/>
+			</div>
+		)}
 		<Footer/>
 	</main>
 </Layout>

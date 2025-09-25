@@ -1,0 +1,147 @@
+---
+export interface Props {
+  isNewUser: boolean;
+  userStats?: {
+    totalItems: number;
+    completedItems: number;
+  };
+}
+
+const { isNewUser, userStats } = Astro.props;
+
+// Don't show if user has items or explicitly not a new user
+if (!isNewUser || (userStats && userStats.totalItems > 0)) {
+  return null;
+}
+---
+
+<div id="onboardingBanner" class="mb-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+  <div class="flex items-center justify-between">
+    <div class="flex-1">
+      <h2 class="text-xl font-bold mb-2">Welcome to your media tracking journey! 🎬📚</h2>
+      <p class="text-blue-100 mb-4">
+        Get started by searching for movies, books, anime, or TV shows you've watched or want to watch.
+      </p>
+      
+      <!-- Onboarding Steps -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="flex items-center space-x-2 text-blue-100">
+          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-sm font-bold">1</div>
+          <span class="text-sm">Search for media</span>
+        </div>
+        <div class="flex items-center space-x-2 text-blue-100">
+          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+          <span class="text-sm">Add to your lists</span>
+        </div>
+        <div class="flex items-center space-x-2 text-blue-100">
+          <div class="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-sm font-bold">3</div>
+          <span class="text-sm">Rate & review</span>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex flex-wrap gap-3">
+        <a
+          href="/search"
+          class="inline-flex items-center px-4 py-2 bg-white text-blue-600 rounded-md font-medium hover:bg-blue-50 transition-colors shadow-sm"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          Search Media
+        </a>
+        <a
+          href="/movies"
+          class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors border border-blue-400"
+        >
+          <span class="mr-2">🎬</span>
+          Browse Movies
+        </a>
+        <a
+          href="/books"
+          class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors border border-blue-400"
+        >
+          <span class="mr-2">📚</span>
+          Browse Books
+        </a>
+        <a
+          href="/anime"
+          class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors border border-blue-400"
+        >
+          <span class="mr-2">🎌</span>
+          Browse Anime
+        </a>
+      </div>
+    </div>
+    
+    <!-- Dismiss Button -->
+    <button
+      id="dismissOnboarding"
+      class="ml-4 p-2 text-blue-200 hover:text-white hover:bg-white hover:bg-opacity-10 rounded-full transition-colors"
+      title="Dismiss onboarding"
+      aria-label="Dismiss onboarding banner"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const dismissBtn = document.getElementById('dismissOnboarding');
+    const banner = document.getElementById('onboardingBanner');
+    
+    if (dismissBtn && banner) {
+      // Check if onboarding was previously dismissed
+      const dismissed = localStorage.getItem('onboardingDismissed');
+      if (dismissed === 'true') {
+        banner.remove();
+        return;
+      }
+
+      dismissBtn.addEventListener('click', () => {
+        banner.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+        banner.style.opacity = '0';
+        banner.style.transform = 'translateY(-10px)';
+        
+        setTimeout(() => {
+          banner.remove();
+          localStorage.setItem('onboardingDismissed', 'true');
+        }, 300);
+      });
+    }
+  });
+</script>
+
+<style>
+  #onboardingBanner {
+    animation: slideInDown 0.5s ease-out;
+  }
+
+  @keyframes slideInDown {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 640px) {
+    #onboardingBanner .flex {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    #onboardingBanner .ml-4 {
+      margin-left: 0;
+      margin-top: 1rem;
+      align-self: flex-end;
+    }
+  }
+</style>

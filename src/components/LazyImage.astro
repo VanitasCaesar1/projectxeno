@@ -1,0 +1,346 @@
+---
+interface Props {
+  src?: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  class?: string;
+  placeholder?: string;
+  lazy?: boolean;
+}
+
+const { 
+  src, 
+  alt, 
+  width = 300, 
+  height = 450, 
+  class: className = '',
+  placeholder,
+  lazy = true 
+} = Astro.props;
+
+// Generate a placeholder SVG if no custom placeholder provided
+const defaultPlaceholder = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${width}' height='${height}' viewBox='0 0 ${width} ${height}'%3E%3Crect width='${width}' height='${height}' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-size='16' fill='%236b7280'%3ELoading...%3C/text%3E%3C/svg%3E`;
+
+const placeholderSrc = placeholder || defaultPlaceholder;
+---
+
+<div class={`lazy-image-container ${className}`} style={`width: ${width}px; height: ${height}px;`}>
+  {src ? (
+    <img 
+      class="lazy-image w-full h-full object-cover transition-opacity duration-300"
+      src={lazy ? placeholderSrc : src}
+      data-src={lazy ? src : undefined}
+      alt={alt}
+      width={width}
+      height={height}
+      loading={lazy ? "lazy" : "eager"}
+      decoding="async"
+      style="opacity: 0;"
+    />
+  ) : (
+    <div class="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
+      <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+      </svg>
+    </div>
+  )}
+</div>
+
+<script>
+  // Enhanced Intersection Observer for lazy loading with performance optimizations
+  if ('IntersectionObserver' in window) {
+    let imageObserver;
+    let imageCache = new Map();
+    let loadingQueue = [];
+    let isProcessingQueue = false;
+
+    // Throttle function for performance
+    function throttle(func, limit) {
+      let inThrottle;
+      return function() {
+        const args = arguments;
+        const context = this;
+        if (!inThrottle) {
+          func.apply(context, args);
+          inThrottle = true;
+          setTimeout(() => inThrottle = false, limit);
+        }
+      }
+    }
+
+    // Process image loading queue with concurrency control
+    async function processLoadingQueue() {
+      if (isProcessingQueue || loadingQueue.length === 0) return;
+      
+      isProcessingQueue = true;
+      const maxConcurrent = 3; // Limit concurrent image loads
+      
+      while (loadingQueue.length > 0) {
+        const batch = loadingQueue.splice(0, maxConcurrent);
+        await Promise.allSettled(batch.map(loadImage));
+      }
+      
+      isProcessingQueue = false;
+    }
+
+    // Enhanced image loading with caching and error handling
+    function loadImage({ img, src }) {
+      return new Promise((resolve) => {
+        // Check cache first
+        if (imageCache.has(src)) {
+          const cachedData = imageCache.get(src);
+          if (cachedData.success) {
+            img.src = src;
+            img.style.opacity = '1';
+            img.removeAttribute('data-src');
+          } else {
+            showImageError(img);
+          }
+          resolve();
+          return;
+        }
+
+        // Create new image for preloading
+        const newImg = new Image();
+        
+        // Add performance monitoring
+        const startTime = performance.now();
+        
+        newImg.onload = () => {
+          const loadTime = performance.now() - startTime;
+          
+          // Cache successful load
+          imageCache.set(src, { success: true, loadTime });
+          
+          // Apply image with fade-in effect
+          img.src = src;
+          img.style.opacity = '1';
+          img.removeAttribute('data-src');
+          
+          // Progressive enhancement for TMDB images
+          requestIdleCallback(() => enhanceImageQuality(img, src));
+          
+          // Performance logging
+          if (window.performanceMonitor) {
+            window.performanceMonitor.recordImageLoad(loadTime);
+          }
+          
+          resolve();
+        };
+        
+        newImg.onerror = () => {
+          // Cache failed load to avoid retries
+          imageCache.set(src, { success: false });
+          showImageError(img);
+          resolve();
+        };
+        
+        // Set loading priority hint if supported
+        if ('fetchPriority' in newImg) {
+          newImg.fetchPriority = 'low';
+        }
+        
+        newImg.src = src;
+      });
+    }
+
+    // Show error state for failed images
+    function showImageError(img) {
+      img.style.opacity = '1';
+      img.alt = 'Failed to load image';
+      img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"%3E%3Crect width="300" height="450" fill="%23f3f4f6"/%3E%3Ctext x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="system-ui" font-size="16" fill="%236b7280"%3EImage not found%3C/text%3E%3C/svg%3E';
+    }
+
+    // Optimized observer callback
+    const observerCallback = throttle((entries, observer) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const img = entry.target;
+          const src = img.dataset.src;
+          
+          if (src) {
+            // Add to loading queue instead of loading immediately
+            loadingQueue.push({ img, src });
+            observer.unobserve(img);
+            
+            // Process queue
+            requestIdleCallback(processLoadingQueue);
+          } else {
+            // If no data-src, just show the image
+            img.style.opacity = '1';
+            observer.unobserve(img);
+          }
+        }
+      });
+    }, 50);
+
+    imageObserver = new IntersectionObserver(observerCallback, {
+      rootMargin: '100px 0px', // Start loading 100px before entering viewport
+      threshold: 0.01
+    });
+
+    // Observe all lazy images
+    function observeLazyImages() {
+      document.querySelectorAll('.lazy-image[data-src]:not([data-observed])').forEach(img => {
+        img.setAttribute('data-observed', 'true');
+        imageObserver.observe(img);
+      });
+
+      // Handle non-lazy images
+      document.querySelectorAll('.lazy-image:not([data-src]):not([data-observed])').forEach(img => {
+        img.setAttribute('data-observed', 'true');
+        img.style.opacity = '1';
+      });
+    }
+
+    // Initial observation
+    observeLazyImages();
+
+    // Re-observe when new images are added
+    const mutationObserver = new MutationObserver(() => {
+      requestIdleCallback(observeLazyImages);
+    });
+
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Progressive image enhancement with better quality detection
+    function enhanceImageQuality(img, originalSrc) {
+      if (!originalSrc.includes('image.tmdb.org')) return;
+      
+      // Determine optimal size based on container
+      const containerWidth = img.offsetWidth;
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const targetWidth = containerWidth * devicePixelRatio;
+      
+      let optimalSize = 'w500';
+      if (targetWidth > 780) optimalSize = 'original';
+      else if (targetWidth > 500) optimalSize = 'w780';
+      else if (targetWidth > 342) optimalSize = 'w500';
+      else if (targetWidth > 185) optimalSize = 'w342';
+      
+      // Only upgrade if current size is smaller
+      const currentSize = originalSrc.match(/w(\d+)/)?.[1];
+      const currentSizeNum = currentSize ? parseInt(currentSize) : 0;
+      const optimalSizeNum = optimalSize === 'original' ? 9999 : parseInt(optimalSize.substring(1));
+      
+      if (optimalSizeNum > currentSizeNum) {
+        const highQualitySrc = originalSrc.replace(/w\d+/, optimalSize);
+        
+        // Check if already cached
+        if (imageCache.has(highQualitySrc)) {
+          const cached = imageCache.get(highQualitySrc);
+          if (cached.success) {
+            img.src = highQualitySrc;
+          }
+          return;
+        }
+        
+        // Load higher quality version
+        const highQualityImg = new Image();
+        highQualityImg.onload = () => {
+          imageCache.set(highQualitySrc, { success: true });
+          img.src = highQualitySrc;
+        };
+        highQualityImg.onerror = () => {
+          imageCache.set(highQualitySrc, { success: false });
+        };
+        highQualityImg.src = highQualitySrc;
+      }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (imageObserver) imageObserver.disconnect();
+      if (mutationObserver) mutationObserver.disconnect();
+      imageCache.clear();
+    });
+
+    // Preload critical images
+    window.preloadImages = function(urls) {
+      if (window.imageOptimizer) {
+        window.imageOptimizer.preloadImages(urls, 2);
+      }
+    };
+
+  } else {
+    // Fallback for browsers without IntersectionObserver
+    document.querySelectorAll('.lazy-image').forEach(img => {
+      const imgElement = img;
+      const src = imgElement.dataset.src || imgElement.src;
+      if (src) {
+        imgElement.src = src;
+        imgElement.style.opacity = '1';
+      }
+    });
+  }
+
+  // Responsive image size adjustment
+  function adjustImageSizes() {
+    document.querySelectorAll('.lazy-image-container').forEach(container => {
+      const img = container.querySelector('.lazy-image');
+      if (img && img.src && img.src.includes('image.tmdb.org')) {
+        enhanceImageQuality(img, img.src);
+      }
+    });
+  }
+
+  // Adjust on resize with debouncing
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(adjustImageSizes, 250);
+  });
+
+  // Initial size adjustment
+  document.addEventListener('DOMContentLoaded', adjustImageSizes);
+</script>
+
+<style>
+  .lazy-image-container {
+    position: relative;
+    overflow: hidden;
+    background-color: #f3f4f6;
+    border-radius: 0.5rem;
+  }
+
+  .dark .lazy-image-container {
+    background-color: #374151;
+  }
+
+  .lazy-image {
+    transition: opacity 0.3s ease-in-out;
+  }
+
+  /* Skeleton loading animation */
+  .lazy-image[data-src] {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+  }
+
+  .dark .lazy-image[data-src] {
+    background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+    background-size: 200% 100%;
+  }
+
+  @keyframes loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Responsive image sizing */
+  @media (max-width: 640px) {
+    .lazy-image-container {
+      width: 80px !important;
+      height: 120px !important;
+    }
+  }
+</style>

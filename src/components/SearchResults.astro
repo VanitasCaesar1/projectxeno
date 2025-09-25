@@ -1,0 +1,502 @@
+---
+import MediaCard from "./MediaCard.astro";
+import SkeletonLoader from "./ui/SkeletonLoader.astro";
+import LoadingSpinner from "./ui/LoadingSpinner.astro";
+
+interface SearchResult {
+  id: string;
+  title: string;
+  type: "movie" | "tv" | "book" | "anime" | "manga";
+  year?: number;
+  poster?: string;
+  description?: string;
+  rating?: number;
+  source: "tmdb" | "openlibrary" | "jikan";
+}
+
+interface Props {
+  results: SearchResult[];
+  total: number;
+  page: number;
+  totalPages: number;
+  query: string;
+  loading?: boolean;
+  infiniteScroll?: boolean;
+  itemsPerPage?: number;
+}
+
+const {
+  results = [],
+  total = 0,
+  page = 1,
+  totalPages = 0,
+  query = "",
+  loading = false,
+  infiniteScroll = true,
+  itemsPerPage = 20,
+} = Astro.props;
+
+const mediaTypes = [
+  { value: "all", label: "All Media" },
+  { value: "movie", label: "Movies" },
+  { value: "tv", label: "TV Shows" },
+  { value: "book", label: "Books" },
+  { value: "anime", label: "Anime" },
+  { value: "manga", label: "Manga" },
+];
+---
+
+<div class="search-results">
+  <!-- Filters and Stats -->
+  <div
+    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6"
+  >
+    <div class="search-stats">
+      {
+        loading ? (
+          <p class="text-gray-600">Searching...</p>
+        ) : (
+          <p class="text-gray-600">
+            {total > 0 ? (
+              <>
+                Found <span class="font-semibold">{total}</span> results for "
+                <span class="font-semibold">{query}</span>"
+              </>
+            ) : query ? (
+              <>
+                No results found for "<span class="font-semibold">{query}</span>
+                "
+              </>
+            ) : (
+              "Enter a search term to find movies, TV shows, books, anime, and manga"
+            )}
+          </p>
+        )
+      }
+    </div>
+
+    <!-- Media Type Filter -->
+    <div class="flex items-center gap-2">
+      <label for="media-type-filter" class="text-sm font-medium text-gray-700"
+        >Filter:</label
+      >
+      <select
+        id="media-type-filter"
+        class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+        {
+          mediaTypes.map((type) => (
+            <option value={type.value}>{type.label}</option>
+          ))
+        }
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  {loading && (
+    <div class="space-y-4">
+      <!-- Loading spinner for initial search -->
+      <div class="flex justify-center items-center py-8">
+        <LoadingSpinner size="lg" text="Searching..." />
+      </div>
+      
+      <!-- Skeleton cards while loading -->
+      <div class="space-y-4">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+            <div class="flex flex-col sm:flex-row">
+              <div class="w-full h-48 sm:w-24 sm:h-36 flex-shrink-0">
+                <SkeletonLoader variant="image" width="w-full" height="h-full" />
+              </div>
+              <div class="flex-1 p-3 sm:p-4">
+                <div class="space-y-2">
+                  <SkeletonLoader variant="text" lines={2} />
+                  <div class="flex gap-2">
+                    <SkeletonLoader variant="custom" width="w-16" height="h-6" />
+                    <SkeletonLoader variant="custom" width="w-12" height="h-6" />
+                  </div>
+                  <SkeletonLoader variant="text" lines={3} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Results Grid -->
+  {
+    !loading && results.length > 0 && (
+      <div class="results-container">
+        <div class="results-grid space-y-4 mb-8">
+          {results.map((result, index) => (
+            <MediaCard {...result} lazy={index > 5} class="media-card" />
+          ))}
+        </div>
+
+        {infiniteScroll && (
+          <infiniteScroll
+            hasMore={page < totalPages}
+            loading={loading}
+            onLoadMore="loadMoreResults"
+            threshold={300}
+          />
+        )}
+      </div>
+    )
+  }
+
+  <!-- Empty State -->
+  {
+    !loading && results.length === 0 && query && (
+      <div class="text-center py-12">
+        <svg
+          class="mx-auto h-12 w-12 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No results found</h3>
+        <p class="mt-1 text-sm text-gray-500">
+          Try adjusting your search terms or filters.
+        </p>
+      </div>
+    )
+  }
+
+  <!-- Traditional Pagination (shown when infinite scroll is disabled) -->
+  {
+    !infiniteScroll && !loading && totalPages > 1 && (
+      <div class="flex justify-center items-center gap-2 mt-8">
+        <button
+          id="prev-page"
+          class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={page <= 1}
+        >
+          Previous
+        </button>
+
+        <div class="flex items-center gap-1">
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            const pageNum = i + 1;
+            return (
+              <button
+                class={`px-3 py-2 text-sm font-medium rounded-md page-btn ${
+                  pageNum === page
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                }`}
+                data-page={pageNum}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+
+          {totalPages > 5 && (
+            <>
+              <span class="px-2 text-gray-500">...</span>
+              <button
+                class={`px-3 py-2 text-sm font-medium rounded-md page-btn ${
+                  totalPages === page
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                }`}
+                data-page={totalPages}
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+        </div>
+
+        <button
+          id="next-page"
+          class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={page >= totalPages}
+        >
+          Next
+        </button>
+      </div>
+    )
+  }
+</div>
+
+<script>
+  // Extend Window interface for our custom functions
+  declare global {
+    interface Window {
+      loadMoreResults?: () => Promise<void>;
+      scrollToNewContent?: () => void;
+    }
+  }
+
+  // Global state for search and pagination
+  let currentQuery = "";
+  let currentPage = 1;
+  let currentType = "all";
+  let isLoading = false;
+  let allResults: any[] = [];
+
+  // Handle media type filtering
+  const mediaTypeFilter = document.getElementById(
+    "media-type-filter"
+  ) as HTMLSelectElement;
+  if (mediaTypeFilter) {
+    mediaTypeFilter.addEventListener("change", (e) => {
+      const selectedType = (e.target as HTMLSelectElement).value;
+      currentType = selectedType;
+      currentPage = 1;
+      allResults = [];
+
+      const event = new CustomEvent("filterChange", {
+        detail: { type: selectedType },
+        bubbles: true,
+      });
+      mediaTypeFilter.dispatchEvent(event);
+    });
+  }
+
+  // Load more results function (called by InfiniteScroll component)
+  window.loadMoreResults = async function () {
+    if (isLoading || !currentQuery) return;
+
+    isLoading = true;
+    const nextPage = currentPage + 1;
+
+    try {
+      const response = await fetch(
+        `/api/search?q=${encodeURIComponent(currentQuery)}&page=${nextPage}&type=${currentType}`
+      );
+      const data = await response.json();
+
+      if (data.success && data.data.results.length > 0) {
+        allResults.push(...data.data.results);
+        currentPage = nextPage;
+
+        // Add new results to the DOM
+        const resultsGrid = document.querySelector(".results-grid");
+        if (resultsGrid) {
+          data.data.results.forEach((result: any, index: number) => {
+            const mediaCard = createMediaCard(
+              result,
+              allResults.length - data.data.results.length + index > 5
+            );
+            mediaCard.classList.add("new-content");
+            resultsGrid.appendChild(mediaCard);
+          });
+
+          // Scroll to new content after a brief delay
+          setTimeout(() => {
+            if (window.scrollToNewContent) {
+              window.scrollToNewContent();
+            }
+          }, 100);
+        }
+
+        // Update pagination info
+        updatePaginationInfo(data.data);
+      }
+    } catch (error) {
+      console.error("Error loading more results:", error);
+      showNotification("Failed to load more results. Please try again.");
+    } finally {
+      isLoading = false;
+    }
+  };
+
+  // Create media card element
+  function createMediaCard(result: any, lazy: boolean = true): HTMLElement {
+    const card = document.createElement("div");
+    card.className =
+      "bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 group cursor-pointer media-card";
+    card.onclick = () =>
+      (window.location.href = `/media/${result.type}/${result.id}`);
+
+    card.innerHTML = `
+      <div class="flex">
+        <div class="w-24 h-36 flex-shrink-0">
+          <div class="lazy-image-container rounded-l-lg" style="width: 96px; height: 144px;">
+            ${
+              result.poster
+                ? `<img class="lazy-image w-full h-full object-cover transition-opacity duration-300" 
+                   src="${lazy ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='144' viewBox='0 0 96 144'%3E%3Crect width='96' height='144' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='system-ui' font-size='12' fill='%236b7280'%3ELoading...%3C/text%3E%3C/svg%3E" : result.poster}"
+                   ${lazy ? `data-src="${result.poster}"` : ""}
+                   alt="${result.title} poster"
+                   width="96" height="144"
+                   loading="${lazy ? "lazy" : "eager"}"
+                   decoding="async"
+                   style="opacity: ${lazy ? "0" : "1"};" />`
+                : `<div class="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
+                 <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                   <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                 </svg>
+               </div>`
+            }
+          </div>
+        </div>
+        <div class="flex-1 p-4">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex-1">
+              <h3 class="font-semibold text-gray-900 line-clamp-2 mb-1">${result.title}</h3>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(result.type)}">
+                  ${getTypeLabel(result.type)}
+                </span>
+                ${result.year ? `<span class="text-sm text-gray-500">${result.year}</span>` : ""}
+                ${
+                  result.rating
+                    ? `
+                  <div class="flex items-center gap-1">
+                    <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span class="text-sm text-gray-600">${result.rating.toFixed(1)}</span>
+                  </div>
+                `
+                    : ""
+                }
+              </div>
+            </div>
+            <button class="add-to-list-btn ml-2 px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors duration-200"
+                    data-media-id="${result.id}"
+                    data-media-title="${result.title}"
+                    data-media-type="${result.type}"
+                    data-media-poster="${result.poster || ""}"
+                    data-media-year="${result.year || ""}"
+                    data-media-source="${result.source}">
+              Add
+            </button>
+          </div>
+          ${result.description ? `<p class="text-sm text-gray-600 line-clamp-3">${result.description}</p>` : ""}
+          <div class="mt-2 text-xs text-gray-400 capitalize">via ${result.source}</div>
+        </div>
+      </div>
+    `;
+
+    return card;
+  }
+
+  // Helper functions
+  function getTypeColor(type: string): string {
+    const colors = {
+      movie: "bg-blue-100 text-blue-800",
+      tv: "bg-purple-100 text-purple-800",
+      book: "bg-green-100 text-green-800",
+      anime: "bg-orange-100 text-orange-800",
+      manga: "bg-pink-100 text-pink-800",
+    };
+    return colors[type] || "bg-gray-100 text-gray-800";
+  }
+
+  function getTypeLabel(type: string): string {
+    const labels = {
+      movie: "Movie",
+      tv: "TV Show",
+      book: "Book",
+      anime: "Anime",
+      manga: "Manga",
+    };
+    return labels[type] || type;
+  }
+
+  function updatePaginationInfo(data: any) {
+    // Update infinite scroll component state
+    const infiniteScrollContainer = document.querySelector(
+      ".infinite-scroll-container"
+    );
+    if (infiniteScrollContainer) {
+      const hasMore = currentPage < data.totalPages;
+      const loadMoreTrigger = infiniteScrollContainer.querySelector(
+        ".load-more-trigger"
+      ) as HTMLElement;
+      const endIndicator = infiniteScrollContainer.querySelector(
+        ".text-center.py-8"
+      ) as HTMLElement;
+
+      if (hasMore) {
+        if (loadMoreTrigger) loadMoreTrigger.style.display = "block";
+        if (endIndicator) endIndicator.style.display = "none";
+      } else {
+        if (loadMoreTrigger) loadMoreTrigger.style.display = "none";
+        if (endIndicator) endIndicator.style.display = "block";
+      }
+    }
+  }
+
+  // Handle traditional pagination
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+
+    if (target.id === "prev-page" || target.id === "next-page") {
+      const currentPageEl = document.querySelector(".bg-blue-600");
+      const currentPageNum = parseInt(currentPageEl?.textContent || "1");
+      const newPage =
+        target.id === "prev-page" ? currentPageNum - 1 : currentPageNum + 1;
+
+      const event = new CustomEvent("pageChange", {
+        detail: { page: newPage },
+        bubbles: true,
+      });
+      target.dispatchEvent(event);
+    }
+
+    if (target.classList.contains("page-btn")) {
+      const newPage = parseInt(target.dataset.page || "1");
+      const event = new CustomEvent("pageChange", {
+        detail: { page: newPage },
+        bubbles: true,
+      });
+      target.dispatchEvent(event);
+    }
+  });
+
+  // Handle add to list events
+  document.addEventListener("addToList", (e) => {
+    const detail = (e as CustomEvent).detail;
+    console.log("Adding to list:", detail);
+
+    // Here you would typically make an API call to add the item to the user's list
+    // For now, we'll just show a notification
+    showNotification(`Added "${detail.title}" to your list!`);
+  });
+
+  function showNotification(message: string) {
+    // Create a simple notification
+    const notification = document.createElement("div");
+    notification.className =
+      "fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-opacity duration-300";
+    notification.textContent = message;
+
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+      notification.style.opacity = "0";
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 300);
+    }, 3000);
+  }
+
+  // Initialize search state from URL or props
+  document.addEventListener("DOMContentLoaded", () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    currentQuery = urlParams.get("q") || "";
+    currentPage = parseInt(urlParams.get("page") || "1");
+    currentType = urlParams.get("type") || "all";
+
+    // Set filter dropdown to current type
+    if (mediaTypeFilter) {
+      mediaTypeFilter.value = currentType;
+    }
+  });
+</script>

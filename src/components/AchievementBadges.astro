@@ -1,0 +1,263 @@
+---
+import { supabase } from '../lib/supabase';
+
+interface Props {
+  userId: string;
+  showAll?: boolean;
+  limit?: number;
+}
+
+const { userId, showAll = false, limit = 6 } = Astro.props;
+
+let userAchievements: any[] = [];
+let totalAchievements = 0;
+let totalPoints = 0;
+
+if (userId) {
+  try {
+    // Get user achievements with achievement details
+    let query = supabase
+      .from('user_achievements')
+      .select(`
+        *,
+        achievements (
+          id,
+          key,
+          name,
+          description,
+          icon,
+          category,
+          points,
+          rarity
+        )
+      `)
+      .eq('user_id', userId)
+      .order('unlocked_at', { ascending: false });
+
+    if (!showAll && limit) {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching user achievements:', error);
+    } else {
+      userAchievements = data || [];
+      totalAchievements = userAchievements.length;
+      totalPoints = userAchievements.reduce((sum, ua) => sum + (ua.achievements?.points || 0), 0);
+    }
+  } catch (error) {
+    console.error('Error in achievements fetch:', error);
+  }
+}
+
+function getRarityColor(rarity: string): string {
+  switch (rarity) {
+    case 'legendary': return 'from-yellow-400 to-yellow-600 text-yellow-900';
+    case 'epic': return 'from-purple-400 to-purple-600 text-purple-900';
+    case 'rare': return 'from-blue-400 to-blue-600 text-blue-900';
+    case 'common': return 'from-gray-400 to-gray-600 text-gray-900';
+    default: return 'from-gray-400 to-gray-600 text-gray-900';
+  }
+}
+
+function getRarityBorder(rarity: string): string {
+  switch (rarity) {
+    case 'legendary': return 'border-yellow-400 shadow-yellow-200';
+    case 'epic': return 'border-purple-400 shadow-purple-200';
+    case 'rare': return 'border-blue-400 shadow-blue-200';
+    case 'common': return 'border-gray-400 shadow-gray-200';
+    default: return 'border-gray-400 shadow-gray-200';
+  }
+}
+
+function formatDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+---
+
+<div class="achievement-badges">
+  {!showAll && (
+    <div class="achievement-summary mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900">Achievements</h3>
+          <p class="text-sm text-gray-600">
+            {totalAchievements} unlocked • {totalPoints} points earned
+          </p>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold text-blue-600">{totalAchievements}</div>
+          <div class="text-xs text-gray-500">Total</div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {userAchievements.length === 0 ? (
+    <div class="text-center py-8 text-gray-500">
+      <div class="text-4xl mb-3">🏆</div>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No achievements yet</h3>
+      <p class="text-sm">Start using the platform to unlock achievements!</p>
+      <div class="mt-4 text-xs text-gray-400">
+        <p>• Write your first review</p>
+        <p>• Follow other users</p>
+        <p>• Rate movies and shows</p>
+      </div>
+    </div>
+  ) : (
+    <div class="achievement-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {userAchievements.map((userAchievement) => {
+        const achievement = userAchievement.achievements;
+        if (!achievement) return null;
+
+        return (
+          <div 
+            class={`achievement-card p-4 rounded-lg border-2 ${getRarityBorder(achievement.rarity)} bg-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}
+            data-achievement-id={achievement.id}
+          >
+            <div class="flex items-start gap-3">
+              <div class={`achievement-icon w-12 h-12 rounded-full bg-gradient-to-br ${getRarityColor(achievement.rarity)} flex items-center justify-center text-xl font-bold shadow-md`}>
+                {achievement.icon ? (
+                  <span>{achievement.icon}</span>
+                ) : (
+                  <span>🏆</span>
+                )}
+              </div>
+              
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between">
+                  <h4 class="font-semibold text-gray-900 text-sm leading-tight">
+                    {achievement.name}
+                  </h4>
+                  <span class={`achievement-rarity text-xs px-2 py-1 rounded-full font-medium ${
+                    achievement.rarity === 'legendary' ? 'bg-yellow-100 text-yellow-800' :
+                    achievement.rarity === 'epic' ? 'bg-purple-100 text-purple-800' :
+                    achievement.rarity === 'rare' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {achievement.rarity}
+                  </span>
+                </div>
+                
+                <p class="text-xs text-gray-600 mt-1 leading-relaxed">
+                  {achievement.description}
+                </p>
+                
+                <div class="flex items-center justify-between mt-3">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium text-green-600">
+                      +{achievement.points} points
+                    </span>
+                    <span class={`text-xs px-2 py-1 rounded ${
+                      achievement.category === 'social' ? 'bg-pink-100 text-pink-700' :
+                      achievement.category === 'content' ? 'bg-green-100 text-green-700' :
+                      achievement.category === 'milestone' ? 'bg-blue-100 text-blue-700' :
+                      'bg-purple-100 text-purple-700'
+                    }`}>
+                      {achievement.category}
+                    </span>
+                  </div>
+                  
+                  <span class="text-xs text-gray-500">
+                    {formatDate(userAchievement.unlocked_at)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  {!showAll && userAchievements.length > 0 && (
+    <div class="text-center mt-6">
+      <a 
+        href={`/user/${userId}/achievements`}
+        class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+      >
+        <span>View All Achievements</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+        </svg>
+      </a>
+    </div>
+  )}
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers for achievement cards
+    document.querySelectorAll('.achievement-card').forEach(card => {
+      card.addEventListener('click', function() {
+        const achievementId = this.getAttribute('data-achievement-id');
+        // Could open a modal with more details or navigate to achievement page
+        console.log('Clicked achievement:', achievementId);
+      });
+    });
+
+    // Add animation for newly unlocked achievements
+    const urlParams = new URLSearchParams(window.location.search);
+    const newAchievement = urlParams.get('achievement');
+    
+    if (newAchievement) {
+      const achievementCard = document.querySelector(`[data-achievement-id="${newAchievement}"]`);
+      if (achievementCard) {
+        achievementCard.classList.add('animate-pulse');
+        setTimeout(() => {
+          achievementCard.classList.remove('animate-pulse');
+          achievementCard.classList.add('animate-bounce');
+          setTimeout(() => {
+            achievementCard.classList.remove('animate-bounce');
+          }, 1000);
+        }, 500);
+      }
+    }
+  });
+</script>
+
+<style>
+  .achievement-card {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .achievement-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: left 0.5s;
+  }
+  
+  .achievement-card:hover::before {
+    left: 100%;
+  }
+  
+  .achievement-icon {
+    position: relative;
+    z-index: 1;
+  }
+  
+  .achievement-rarity {
+    text-transform: capitalize;
+  }
+  
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  
+  .achievement-card.new-achievement {
+    animation: shimmer 2s ease-in-out;
+  }
+</style>

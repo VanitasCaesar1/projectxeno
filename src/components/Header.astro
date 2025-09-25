@@ -2,11 +2,17 @@
 import HamburgerMenu from "./HamburgerMenu.astro";
 import Navigation from "./Navigation.astro";
 
-
 ---
-<nav x-data="{ mobileMenuIsOpen: false }" @click.away="mobileMenuIsOpen = false" class="flex p-8 items-center justify-between" aria-label="penguin ui menu">
-	    
-    <!-- Brand Logo -->
-     <Navigation/>
-     <HamburgerMenu/>
-</nav>
+<header role="banner">
+	<nav 
+		x-data="{ mobileMenuIsOpen: false }" 
+		@click.away="mobileMenuIsOpen = false" 
+		class="flex p-4 sm:p-6 lg:p-8 items-center justify-between" 
+		aria-label="Main site navigation"
+		role="navigation"
+	>
+		<!-- Brand Logo -->
+		<Navigation/>
+		<HamburgerMenu/>
+	</nav>
+</header>

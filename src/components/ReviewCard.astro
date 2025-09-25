@@ -1,0 +1,366 @@
+---
+import RatingComponent from './RatingComponent.astro';
+
+export interface Props {
+  review: {
+    id: string;
+    rating?: number;
+    title?: string;
+    content: string;
+    spoilerWarning: boolean;
+    likeCount: number;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      id: string;
+      username: string;
+      displayName?: string;
+      avatarUrl?: string;
+    };
+    media?: {
+      id: string;
+      title: string;
+      mediaType: string;
+      posterUrl?: string;
+    };
+    isLikedByCurrentUser?: boolean;
+  };
+  currentUserId?: string;
+  showMedia?: boolean;
+  showActions?: boolean;
+}
+
+const { 
+  review, 
+  currentUserId, 
+  showMedia = false, 
+  showActions = true 
+} = Astro.props;
+
+const isOwnReview = currentUserId === review.user.id;
+const canInteract = !!currentUserId && !isOwnReview;
+
+// Format dates
+const createdDate = new Date(review.createdAt);
+const updatedDate = new Date(review.updatedAt);
+const wasUpdated = updatedDate.getTime() !== createdDate.getTime();
+
+const formatDate = (date: Date) => {
+  const now = new Date();
+  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  
+  if (diffInHours < 1) {
+    const minutes = Math.floor(diffInHours * 60);
+    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+  } else if (diffInHours < 24) {
+    const hours = Math.floor(diffInHours);
+    return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  } else if (diffInHours < 24 * 7) {
+    const days = Math.floor(diffInHours / 24);
+    return `${days} day${days !== 1 ? 's' : ''} ago`;
+  } else {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+};
+---
+
+<article class="review-card bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4" data-review-id={review.id}>
+  <!-- Review Header -->
+  <header class="review-header flex items-start justify-between mb-4">
+    <div class="user-info flex items-center gap-3">
+      <!-- User Avatar -->
+      <div class="avatar">
+        {review.user.avatarUrl ? (
+          <img 
+            src={review.user.avatarUrl} 
+            alt={`${review.user.username}'s avatar`}
+            class="w-10 h-10 rounded-full object-cover"
+          />
+        ) : (
+          <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+            <span class="text-gray-600 font-medium text-sm">
+              {review.user.username.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
+      </div>
+      
+      <!-- User Details -->
+      <div class="user-details">
+        <div class="flex items-center gap-2">
+          <a 
+            href={`/user/${review.user.username}`}
+            class="font-medium text-gray-900 hover:text-blue-600 transition-colors"
+          >
+            {review.user.displayName || review.user.username}
+          </a>
+          {isOwnReview && (
+            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+              Your review
+            </span>
+          )}
+        </div>
+        
+        <div class="flex items-center gap-2 text-sm text-gray-500">
+          <time datetime={review.createdAt} title={createdDate.toLocaleString()}>
+            {formatDate(createdDate)}
+          </time>
+          {wasUpdated && (
+            <>
+              <span>•</span>
+              <span title={`Updated ${updatedDate.toLocaleString()}`}>
+                edited
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+    
+    <!-- Review Actions (Edit/Delete for own reviews) -->
+    {isOwnReview && showActions && (
+      <div class="review-actions">
+        <button
+          type="button"
+          class="edit-review-btn text-gray-400 hover:text-gray-600 p-1"
+          data-review-id={review.id}
+          title="Edit review"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+        </button>
+      </div>
+    )}
+  </header>
+  
+  <!-- Media Info (if showing media context) -->
+  {showMedia && review.media && (
+    <div class="media-context mb-4 p-3 bg-gray-50 rounded-lg">
+      <div class="flex items-center gap-3">
+        {review.media.posterUrl && (
+          <img 
+            src={review.media.posterUrl} 
+            alt={`${review.media.title} poster`}
+            class="w-12 h-16 object-cover rounded"
+          />
+        )}
+        <div>
+          <h4 class="font-medium text-gray-900">
+            <a href={`/media/${review.media.mediaType}/${review.media.id}`} class="hover:text-blue-600">
+              {review.media.title}
+            </a>
+          </h4>
+          <p class="text-sm text-gray-500 capitalize">{review.media.mediaType}</p>
+        </div>
+      </div>
+    </div>
+  )}
+  
+  <!-- Rating -->
+  {review.rating && (
+    <div class="review-rating mb-3">
+      <RatingComponent 
+        rating={review.rating}
+        maxRating={10}
+        readonly={true}
+        size="sm"
+        showValue={true}
+      />
+    </div>
+  )}
+  
+  <!-- Review Title -->
+  {review.title && (
+    <h3 class="review-title text-lg font-semibold text-gray-900 mb-2">
+      {review.title}
+    </h3>
+  )}
+  
+  <!-- Spoiler Warning -->
+  {review.spoilerWarning && (
+    <div class="spoiler-warning mb-3">
+      <div class="spoiler-toggle bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <span class="text-sm font-medium text-yellow-800">Spoiler Warning</span>
+        </div>
+        <button 
+          type="button" 
+          class="spoiler-reveal-btn text-sm text-yellow-700 hover:text-yellow-900 underline"
+        >
+          Click to reveal spoilers
+        </button>
+      </div>
+    </div>
+  )}
+  
+  <!-- Review Content -->
+  <div class={`review-content ${review.spoilerWarning ? 'spoiler-hidden' : ''}`}>
+    <div class="prose prose-sm max-w-none text-gray-700">
+      {review.content.split('\n').map(paragraph => (
+        paragraph.trim() && <p class="mb-2">{paragraph}</p>
+      ))}
+    </div>
+  </div>
+  
+  <!-- Review Footer (Likes, etc.) -->
+  {showActions && (
+    <footer class="review-footer flex items-center justify-between pt-4 mt-4 border-t border-gray-100">
+      <div class="review-stats flex items-center gap-4">
+        <!-- Like Button -->
+        <button
+          type="button"
+          class={`like-btn flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-colors ${
+            canInteract 
+              ? review.isLikedByCurrentUser 
+                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+          }`}
+          data-review-id={review.id}
+          data-liked={review.isLikedByCurrentUser}
+          disabled={!canInteract}
+          title={!currentUserId ? 'Sign in to like reviews' : isOwnReview ? 'You cannot like your own review' : ''}
+        >
+          <svg class="w-4 h-4" fill={review.isLikedByCurrentUser ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+          </svg>
+          <span class="like-count">{review.likeCount}</span>
+        </button>
+        
+        <!-- Helpful indicator -->
+        {review.likeCount > 0 && (
+          <span class="text-xs text-gray-500">
+            {review.likeCount} {review.likeCount === 1 ? 'person found' : 'people found'} this helpful
+          </span>
+        )}
+      </div>
+      
+      <!-- Additional Actions -->
+      <div class="additional-actions">
+        {canInteract && (
+          <button
+            type="button"
+            class="report-btn text-xs text-gray-400 hover:text-gray-600"
+            data-review-id={review.id}
+            title="Report inappropriate content"
+          >
+            Report
+          </button>
+        )}
+      </div>
+    </footer>
+  )}
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Handle spoiler reveals
+    document.querySelectorAll('.spoiler-reveal-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const reviewCard = e.target.closest('.review-card');
+        const spoilerContent = reviewCard.querySelector('.review-content.spoiler-hidden');
+        const spoilerWarning = reviewCard.querySelector('.spoiler-warning');
+        
+        if (spoilerContent) {
+          spoilerContent.classList.remove('spoiler-hidden');
+          spoilerWarning.style.display = 'none';
+        }
+      });
+    });
+    
+    // Handle like/unlike
+    document.querySelectorAll('.like-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        if (btn.disabled) return;
+        
+        const reviewId = btn.dataset.reviewId;
+        const isLiked = btn.dataset.liked === 'true';
+        const likeCountSpan = btn.querySelector('.like-count');
+        
+        try {
+          btn.disabled = true;
+          
+          const response = await fetch(`/api/reviews/${reviewId}/like`, {
+            method: isLiked ? 'DELETE' : 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // Update UI
+            btn.dataset.liked = result.data.liked;
+            likeCountSpan.textContent = result.data.likeCount;
+            
+            // Update button appearance
+            if (result.data.liked) {
+              btn.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+              btn.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+              btn.querySelector('svg').setAttribute('fill', 'currentColor');
+            } else {
+              btn.classList.remove('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+              btn.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+              btn.querySelector('svg').setAttribute('fill', 'none');
+            }
+          } else {
+            console.error('Failed to toggle like:', result.error);
+            // Show error message to user
+            alert(result.error?.message || 'Failed to update like status');
+          }
+        } catch (error) {
+          console.error('Error toggling like:', error);
+          alert('Network error. Please try again.');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+    
+    // Handle edit review
+    document.querySelectorAll('.edit-review-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const reviewId = btn.dataset.reviewId;
+        // This would typically open an edit modal or navigate to edit page
+        // For now, we'll just log it
+        console.log('Edit review:', reviewId);
+        // You could implement this by showing the ReviewForm component in edit mode
+      });
+    });
+    
+    // Handle report review
+    document.querySelectorAll('.report-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const reviewId = btn.dataset.reviewId;
+        if (confirm('Are you sure you want to report this review as inappropriate?')) {
+          // Implement reporting functionality
+          console.log('Report review:', reviewId);
+          alert('Thank you for your report. We will review this content.');
+        }
+      });
+    });
+  });
+</script>
+
+<style>
+  .spoiler-hidden {
+    filter: blur(5px);
+    user-select: none;
+    pointer-events: none;
+  }
+  
+  .prose p:last-child {
+    margin-bottom: 0;
+  }
+</style>

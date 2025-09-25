@@ -1,0 +1,230 @@
+---
+import type { UserProfile, UserPreferences, UserStats } from '../types/database';
+
+interface Props {
+  profile: UserProfile;
+  preferences?: UserPreferences;
+  stats: UserStats;
+  isOwnProfile?: boolean;
+  isFollowing?: boolean;
+}
+
+const { profile, preferences, stats, isOwnProfile = false, isFollowing = false } = Astro.props;
+
+// Format join date
+const joinDate = new Date(profile.created_at).toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long'
+});
+
+// Get initials for avatar
+const initials = profile.display_name 
+  ? profile.display_name.split(' ').map(n => n[0]).join('').toUpperCase()
+  : profile.username.charAt(0).toUpperCase();
+---
+
+<div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+  <!-- Profile Header -->
+  <div class="relative">
+    <!-- Cover/Background -->
+    <div class="h-32 bg-gradient-to-r from-blue-500 to-purple-600"></div>
+    
+    <!-- Profile Info -->
+    <div class="relative px-6 pb-6">
+      <!-- Avatar -->
+      <div class="flex items-end -mt-12 mb-4">
+        <div class="relative">
+          {profile.avatar_url ? (
+            <img 
+              src={profile.avatar_url} 
+              alt={`${profile.display_name || profile.username}'s avatar`}
+              class="h-24 w-24 rounded-full border-4 border-white dark:border-gray-800 bg-white dark:bg-gray-800"
+            />
+          ) : (
+            <div class="h-24 w-24 rounded-full border-4 border-white dark:border-gray-800 bg-blue-500 flex items-center justify-center">
+              <span class="text-2xl font-bold text-white">{initials}</span>
+            </div>
+          )}
+          
+          <!-- Online status indicator (placeholder) -->
+          <div class="absolute bottom-1 right-1 h-6 w-6 bg-green-400 border-2 border-white dark:border-gray-800 rounded-full"></div>
+        </div>
+        
+        <!-- Action buttons -->
+        <div class="ml-auto flex items-center space-x-3">
+          {isOwnProfile ? (
+            <a 
+              href="/profile/edit" 
+              class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Profile
+            </a>
+          ) : (
+            <div class="flex items-center space-x-2">
+              <button 
+                id="followBtn"
+                data-user-id={profile.id}
+                data-following={isFollowing}
+                class={`inline-flex items-center px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                  isFollowing 
+                    ? 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600'
+                    : 'text-white bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {isFollowing ? (
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  ) : (
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  )}
+                </svg>
+                <span id="followText">{isFollowing ? 'Following' : 'Follow'}</span>
+              </button>
+              
+              <button class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      
+      <!-- User Info -->
+      <div class="space-y-2">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+            {profile.display_name || profile.username}
+          </h1>
+          <p class="text-lg text-gray-600 dark:text-gray-400">@{profile.username}</p>
+        </div>
+        
+        {profile.bio && (
+          <p class="text-gray-700 dark:text-gray-300 max-w-2xl">{profile.bio}</p>
+        )}
+        
+        <!-- Profile metadata -->
+        <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+          <div class="flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Joined {joinDate}
+          </div>
+          
+          <div class="flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span class="capitalize">{profile.privacy_level} Profile</span>
+          </div>
+          
+          <!-- Follower/Following counts -->
+          <div class="flex items-center space-x-3">
+            <span><strong>{stats.following}</strong> Following</span>
+            <span><strong>{stats.followers}</strong> Followers</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Statistics Grid -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-gray-50 dark:bg-gray-700">
+    <div class="text-center">
+      <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalItems}</div>
+      <div class="text-sm text-gray-600 dark:text-gray-400">Total Items</div>
+    </div>
+    <div class="text-center">
+      <div class="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completedItems}</div>
+      <div class="text-sm text-gray-600 dark:text-gray-400">Completed</div>
+    </div>
+    <div class="text-center">
+      <div class="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+        {stats.averageRating > 0 ? stats.averageRating.toFixed(1) : '—'}
+      </div>
+      <div class="text-sm text-gray-600 dark:text-gray-400">Avg Rating</div>
+    </div>
+    <div class="text-center">
+      <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.totalReviews}</div>
+      <div class="text-sm text-gray-600 dark:text-gray-400">Reviews</div>
+    </div>
+  </div>
+  
+  <!-- Media Type Breakdown -->
+  {Object.keys(stats.mediaTypeBreakdown).some(type => stats.mediaTypeBreakdown[type as keyof typeof stats.mediaTypeBreakdown] > 0) && (
+    <div class="p-6 border-t border-gray-200 dark:border-gray-600">
+      <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Media Breakdown</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Object.entries(stats.mediaTypeBreakdown).map(([type, count]) => (
+          count > 0 && (
+            <div key={type} class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div class="text-xl font-semibold text-gray-900 dark:text-white">{count}</div>
+              <div class="text-sm text-gray-600 dark:text-gray-400 capitalize">{type}</div>
+            </div>
+          )
+        ))}
+      </div>
+    </div>
+  )}
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const followBtn = document.getElementById('followBtn');
+    const followText = document.getElementById('followText');
+    
+    if (followBtn && followText) {
+      followBtn.addEventListener('click', async function() {
+        const userId = this.dataset.userId;
+        const isFollowing = this.dataset.following === 'true';
+        
+        try {
+          const response = await fetch('/api/user/follow', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId,
+              action: isFollowing ? 'unfollow' : 'follow'
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            // Update button state
+            const newFollowing = !isFollowing;
+            this.dataset.following = newFollowing.toString();
+            followText.textContent = newFollowing ? 'Following' : 'Follow';
+            
+            // Update button styling
+            if (newFollowing) {
+              this.className = this.className.replace(
+                'text-white bg-blue-600 hover:bg-blue-700',
+                'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600'
+              );
+            } else {
+              this.className = this.className.replace(
+                'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600',
+                'text-white bg-blue-600 hover:bg-blue-700'
+              );
+            }
+            
+            // Update follower count (simple increment/decrement)
+            // In a real app, you'd want to refetch or use more sophisticated state management
+          } else {
+            console.error('Failed to update follow status:', data.error);
+          }
+        } catch (error) {
+          console.error('Error updating follow status:', error);
+        }
+      });
+    }
+  });
+</script>

@@ -2,17 +2,148 @@
 import Footer from "../components/Footer.astro";
 import Layout from "../layout/layout.astro";
 import Header from "../components/Header.astro";
-import AnimeCards from "../components/AnimeCards.astro";
+import DynamicMediaGrid from "../components/DynamicMediaGrid.astro";
+import { getDefaultSections } from "../lib/mediaConfig";
 
+// Check if user is logged in by checking for session cookie
+let isLoggedIn = false;
+try {
+  const sessionCookie = Astro.cookies.get('sb-access-token');
+  if (sessionCookie && sessionCookie.value) {
+    // We have a session token, assume user is logged in
+    // The DynamicMediaGrid component will handle the actual auth check
+    isLoggedIn = true;
+  }
+} catch (error) {
+  console.warn('Failed to check session:', error);
+  isLoggedIn = false;
+}
+
+// Get anime-specific content sections
+const animeSections = getDefaultSections('anime', isLoggedIn);
 ---
 
-<Layout>
-	<main>
+<Layout title="Anime">
+	<main role="main" class="min-h-screen flex flex-col">
 		<Header />
-        <div class="min-h-screen">
-            <AnimeCards />
+        <div class="flex-1 bg-gray-50 dark:bg-gray-900">
+            <div class="container mx-auto px-4 py-8">
+				<!-- Skip to content link for screen readers -->
+				<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 bg-lime-600 text-white px-4 py-2 rounded-md z-50">Skip to main content</a>
+				
+				<!-- Page heading for screen readers -->
+				<div class="sr-only">
+					<h1>Anime - Browse and discover anime series and movies</h1>
+				</div>
+				
+				<div id="main-content" tabindex="-1">
+					<DynamicMediaGrid 
+						mediaType="anime"
+						showSearch={true}
+						showFilters={true}
+						sections={animeSections}
+						class="anime-page-grid"
+					/>
+				</div>
+            </div>
         </div>
 		<Footer/>
 	</main>
 </Layout>
+
+<style>
+    /* Ensure consistent layout */
+    main {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+    
+    /* Improve focus visibility */
+    .anime-page-grid :focus {
+        outline: 2px solid #10b981;
+        outline-offset: 2px;
+    }
+    
+    /* Responsive improvements */
+    @media (max-width: 640px) {
+        .container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .container {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+    }
+</style>
+
+<script>
+    // Enhanced anime page functionality
+    document.addEventListener('DOMContentLoaded', () => {
+        // Track page view for analytics
+        if (window.gtag) {
+            window.gtag('event', 'page_view', {
+                page_title: 'Anime',
+                page_location: window.location.href
+            });
+        }
+        
+        // Announce page changes to screen readers
+        const announcement = document.createElement('div');
+        announcement.setAttribute('aria-live', 'polite');
+        announcement.setAttribute('aria-atomic', 'true');
+        announcement.className = 'sr-only';
+        announcement.textContent = 'Anime page loaded. Use tab to navigate through anime sections and search options.';
+        document.body.appendChild(announcement);
+        
+        // Remove announcement after screen readers have processed it
+        setTimeout(() => {
+            if (announcement.parentNode) {
+                announcement.parentNode.removeChild(announcement);
+            }
+        }, 1000);
+        
+        // Enhanced keyboard navigation for anime grid
+        const animeGrid = document.querySelector('.anime-page-grid');
+        if (animeGrid) {
+            // Handle arrow key navigation within grid
+            animeGrid.addEventListener('keydown', (e) => {
+                const keyEvent = e as KeyboardEvent;
+                if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(keyEvent.key)) return;
+                
+                const focusableElements = animeGrid.querySelectorAll('button, a, input, [tabindex]:not([tabindex="-1"])');
+                const currentIndex = Array.from(focusableElements).indexOf(document.activeElement as Element);
+                
+                if (currentIndex === -1) return;
+                
+                let nextIndex = currentIndex;
+                const gridColumns = window.innerWidth >= 1280 ? 4 : window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1;
+                
+                switch (keyEvent.key) {
+                    case 'ArrowRight':
+                        nextIndex = Math.min(currentIndex + 1, focusableElements.length - 1);
+                        break;
+                    case 'ArrowLeft':
+                        nextIndex = Math.max(currentIndex - 1, 0);
+                        break;
+                    case 'ArrowDown':
+                        nextIndex = Math.min(currentIndex + gridColumns, focusableElements.length - 1);
+                        break;
+                    case 'ArrowUp':
+                        nextIndex = Math.max(currentIndex - gridColumns, 0);
+                        break;
+                }
+                
+                if (nextIndex !== currentIndex) {
+                    keyEvent.preventDefault();
+                    (focusableElements[nextIndex] as HTMLElement).focus();
+                }
+            });
+        }
+    });
+</script>
 

@@ -1,0 +1,425 @@
+---
+import { supabase } from '../lib/supabase';
+
+interface Props {
+  userId: string;
+}
+
+const { userId } = Astro.props;
+
+let preferences: any = null;
+
+if (userId) {
+  try {
+    const { data, error } = await supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching notification preferences:', error);
+    } else {
+      preferences = data;
+    }
+  } catch (error) {
+    console.error('Error in notification preferences fetch:', error);
+  }
+}
+
+// Default preferences if none exist
+if (!preferences) {
+  preferences = {
+    email_notifications: true,
+    push_notifications: true,
+    likes_notifications: true,
+    follows_notifications: true,
+    reviews_notifications: true,
+    achievements_notifications: true,
+    system_notifications: true,
+    email_frequency: 'immediate',
+    digest_time: '09:00:00'
+  };
+}
+---
+
+<div class="notification-settings">
+  <div class="settings-header mb-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-2">Notification Settings</h2>
+    <p class="text-gray-600">Manage how and when you receive notifications</p>
+  </div>
+
+  <form id="notification-settings-form" class="space-y-6">
+    <!-- General Settings -->
+    <div class="settings-section">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <span>🔔</span>
+        General Notifications
+      </h3>
+      
+      <div class="space-y-4">
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <label for="email_notifications" class="font-medium text-gray-900">Email Notifications</label>
+            <p class="text-sm text-gray-600">Receive notifications via email</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="email_notifications" 
+              name="email_notifications"
+              checked={preferences.email_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <label for="push_notifications" class="font-medium text-gray-900">Push Notifications</label>
+            <p class="text-sm text-gray-600">Receive browser push notifications</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="push_notifications" 
+              name="push_notifications"
+              checked={preferences.push_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Types -->
+    <div class="settings-section">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <span>📋</span>
+        Notification Types
+      </h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <label for="likes_notifications" class="font-medium text-gray-900 flex items-center gap-2">
+              <span>❤️</span>
+              Likes
+            </label>
+            <p class="text-sm text-gray-600">When someone likes your reviews</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="likes_notifications" 
+              name="likes_notifications"
+              checked={preferences.likes_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <label for="follows_notifications" class="font-medium text-gray-900 flex items-center gap-2">
+              <span>👥</span>
+              Follows
+            </label>
+            <p class="text-sm text-gray-600">When someone follows you</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="follows_notifications" 
+              name="follows_notifications"
+              checked={preferences.follows_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <label for="reviews_notifications" class="font-medium text-gray-900 flex items-center gap-2">
+              <span>📝</span>
+              Reviews
+            </label>
+            <p class="text-sm text-gray-600">New reviews from people you follow</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="reviews_notifications" 
+              name="reviews_notifications"
+              checked={preferences.reviews_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <label for="achievements_notifications" class="font-medium text-gray-900 flex items-center gap-2">
+              <span>🏆</span>
+              Achievements
+            </label>
+            <p class="text-sm text-gray-600">When you unlock achievements</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="achievements_notifications" 
+              name="achievements_notifications"
+              checked={preferences.achievements_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-item flex items-center justify-between p-4 bg-gray-50 rounded-lg md:col-span-2">
+          <div>
+            <label for="system_notifications" class="font-medium text-gray-900 flex items-center gap-2">
+              <span>🔔</span>
+              System Notifications
+            </label>
+            <p class="text-sm text-gray-600">Important updates and announcements</p>
+          </div>
+          <label class="toggle-switch">
+            <input 
+              type="checkbox" 
+              id="system_notifications" 
+              name="system_notifications"
+              checked={preferences.system_notifications}
+            />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Settings -->
+    <div class="settings-section" id="email-settings">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <span>📧</span>
+        Email Settings
+      </h3>
+      
+      <div class="space-y-4">
+        <div class="setting-item p-4 bg-gray-50 rounded-lg">
+          <label for="email_frequency" class="block font-medium text-gray-900 mb-2">
+            Email Frequency
+          </label>
+          <select 
+            id="email_frequency" 
+            name="email_frequency"
+            class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="immediate" selected={preferences.email_frequency === 'immediate'}>
+              Immediate - Send emails right away
+            </option>
+            <option value="daily" selected={preferences.email_frequency === 'daily'}>
+              Daily Digest - Once per day
+            </option>
+            <option value="weekly" selected={preferences.email_frequency === 'weekly'}>
+              Weekly Digest - Once per week
+            </option>
+            <option value="never" selected={preferences.email_frequency === 'never'}>
+              Never - No email notifications
+            </option>
+          </select>
+        </div>
+
+        <div class="setting-item p-4 bg-gray-50 rounded-lg" id="digest-time-setting">
+          <label for="digest_time" class="block font-medium text-gray-900 mb-2">
+            Digest Time
+          </label>
+          <input 
+            type="time" 
+            id="digest_time" 
+            name="digest_time"
+            value={preferences.digest_time}
+            class="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <p class="text-sm text-gray-600 mt-1">
+            Time of day to receive daily/weekly digest emails
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="flex items-center justify-between pt-6 border-t">
+      <div id="save-status" class="text-sm text-gray-600"></div>
+      <button 
+        type="submit"
+        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium"
+      >
+        Save Settings
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('notification-settings-form');
+    const emailSettings = document.getElementById('email-settings');
+    const digestTimeSetting = document.getElementById('digest-time-setting');
+    const saveStatus = document.getElementById('save-status');
+    
+    // Handle email notifications toggle
+    const emailNotificationsToggle = document.getElementById('email_notifications');
+    const emailFrequencySelect = document.getElementById('email_frequency');
+    
+    function updateEmailSettingsVisibility() {
+      const emailEnabled = emailNotificationsToggle.checked;
+      emailSettings.style.opacity = emailEnabled ? '1' : '0.5';
+      emailSettings.style.pointerEvents = emailEnabled ? 'auto' : 'none';
+      
+      updateDigestTimeVisibility();
+    }
+    
+    function updateDigestTimeVisibility() {
+      const frequency = emailFrequencySelect.value;
+      const showDigestTime = frequency === 'daily' || frequency === 'weekly';
+      digestTimeSetting.style.display = showDigestTime ? 'block' : 'none';
+    }
+    
+    emailNotificationsToggle.addEventListener('change', updateEmailSettingsVisibility);
+    emailFrequencySelect.addEventListener('change', updateDigestTimeVisibility);
+    
+    // Initialize visibility
+    updateEmailSettingsVisibility();
+    
+    // Handle form submission
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData(form);
+      const settings = {};
+      
+      // Convert form data to object
+      for (const [key, value] of formData.entries()) {
+        if (form.querySelector(`[name="${key}"]`).type === 'checkbox') {
+          settings[key] = true;
+        } else {
+          settings[key] = value;
+        }
+      }
+      
+      // Add unchecked checkboxes as false
+      form.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        if (!formData.has(checkbox.name)) {
+          settings[checkbox.name] = false;
+        }
+      });
+      
+      try {
+        saveStatus.textContent = 'Saving...';
+        saveStatus.className = 'text-sm text-blue-600';
+        
+        const response = await fetch('/api/notifications/preferences', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(settings)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          saveStatus.textContent = 'Settings saved successfully!';
+          saveStatus.className = 'text-sm text-green-600';
+          
+          setTimeout(() => {
+            saveStatus.textContent = '';
+          }, 3000);
+        } else {
+          throw new Error(result.error || 'Failed to save settings');
+        }
+      } catch (error) {
+        console.error('Error saving notification settings:', error);
+        saveStatus.textContent = 'Failed to save settings. Please try again.';
+        saveStatus.className = 'text-sm text-red-600';
+      }
+    });
+    
+    // Request push notification permission
+    const pushToggle = document.getElementById('push_notifications');
+    pushToggle.addEventListener('change', async function() {
+      if (this.checked && 'Notification' in window) {
+        if (Notification.permission === 'default') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') {
+            this.checked = false;
+            alert('Push notifications require permission. Please enable them in your browser settings.');
+          }
+        } else if (Notification.permission === 'denied') {
+          this.checked = false;
+          alert('Push notifications are blocked. Please enable them in your browser settings.');
+        }
+      }
+    });
+  });
+</script>
+
+<style>
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 24px;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 24px;
+  }
+
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+  }
+
+  input:checked + .toggle-slider {
+    background-color: #3b82f6;
+  }
+
+  input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+  }
+
+  .toggle-slider:hover {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+
+  .setting-item {
+    transition: all 0.2s ease;
+  }
+
+  .setting-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+</style>

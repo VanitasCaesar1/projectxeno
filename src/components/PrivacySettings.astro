@@ -1,0 +1,457 @@
+---
+import type { UserProfile, UserPreferences } from '../types/database';
+
+interface Props {
+  profile: UserProfile;
+  preferences: UserPreferences;
+}
+
+const { profile, preferences } = Astro.props;
+---
+
+<div class="bg-white dark:bg-gray-800 shadow rounded-lg">
+  <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+    <h2 class="text-lg font-medium text-gray-900 dark:text-white">Privacy & Data Controls</h2>
+    <p class="text-sm text-gray-600 dark:text-gray-400">
+      Control who can see your data and manage your privacy settings.
+    </p>
+  </div>
+  
+  <form id="privacyControlsForm" class="p-6 space-y-8">
+    <!-- Profile Visibility -->
+    <div class="space-y-4">
+      <h3 class="text-base font-medium text-gray-900 dark:text-white">Profile Visibility</h3>
+      
+      <div class="space-y-3">
+        <div class="flex items-start">
+          <div class="flex items-center h-5">
+            <input 
+              id="privacy-public" 
+              name="privacyLevel" 
+              type="radio" 
+              value="public"
+              checked={profile.privacy_level === 'public'}
+              class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300"
+            />
+          </div>
+          <div class="ml-3 text-sm">
+            <label for="privacy-public" class="font-medium text-gray-700 dark:text-gray-300">
+              Public Profile
+            </label>
+            <p class="text-gray-500 dark:text-gray-400">
+              Anyone can view your profile, lists, and activity
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-start">
+          <div class="flex items-center h-5">
+            <input 
+              id="privacy-friends" 
+              name="privacyLevel" 
+              type="radio" 
+              value="friends"
+              checked={profile.privacy_level === 'friends'}
+              class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300"
+            />
+          </div>
+          <div class="ml-3 text-sm">
+            <label for="privacy-friends" class="font-medium text-gray-700 dark:text-gray-300">
+              Friends Only
+            </label>
+            <p class="text-gray-500 dark:text-gray-400">
+              Only users you follow can see your profile and activity
+            </p>
+          </div>
+        </div>
+        
+        <div class="flex items-start">
+          <div class="flex items-center h-5">
+            <input 
+              id="privacy-private" 
+              name="privacyLevel" 
+              type="radio" 
+              value="private"
+              checked={profile.privacy_level === 'private'}
+              class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300"
+            />
+          </div>
+          <div class="ml-3 text-sm">
+            <label for="privacy-private" class="font-medium text-gray-700 dark:text-gray-300">
+              Private Profile
+            </label>
+            <p class="text-gray-500 dark:text-gray-400">
+              Only you can see your profile and data
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Visibility Controls -->
+    <div class="space-y-4">
+      <h3 class="text-base font-medium text-gray-900 dark:text-white">Data Visibility</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400">
+        Fine-tune what parts of your data are visible to others (when profile is not private)
+      </p>
+      
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <label for="publicLists" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Media Lists
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Show your watched, reading, and planned lists
+            </p>
+          </div>
+          <div class="ml-4">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                id="publicLists" 
+                name="publicLists" 
+                checked={preferences.public_lists}
+                class="sr-only peer"
+              />
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+        </div>
+        
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <label for="publicRatings" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Ratings & Reviews
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Show your ratings and written reviews
+            </p>
+          </div>
+          <div class="ml-4">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                id="publicRatings" 
+                name="publicRatings" 
+                checked={preferences.public_ratings}
+                class="sr-only peer"
+              />
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+        </div>
+        
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <label for="publicActivity" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Activity Feed
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Show your recent activity and interactions
+            </p>
+          </div>
+          <div class="ml-4">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                id="publicActivity" 
+                name="publicActivity" 
+                checked={preferences.public_activity || true}
+                class="sr-only peer"
+              />
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Management -->
+    <div class="space-y-4">
+      <h3 class="text-base font-medium text-gray-900 dark:text-white">Data Management</h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button 
+          type="button" 
+          id="exportDataBtn"
+          class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Export My Data
+        </button>
+        
+        <button 
+          type="button" 
+          id="reportContentBtn"
+          class="inline-flex items-center justify-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
+        >
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          Report Content
+        </button>
+      </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+      <button 
+        type="submit" 
+        id="savePrivacyBtn"
+        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <span id="savePrivacyText">Save Privacy Settings</span>
+        <svg id="savePrivacySpinner" class="animate-spin -mr-1 ml-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Report Content Modal -->
+<div id="reportModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+  <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800">
+    <div class="mt-3">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Report Content</h3>
+        <button id="closeReportModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      
+      <form id="reportForm" class="space-y-4">
+        <div>
+          <label for="reportType" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Report Type
+          </label>
+          <select 
+            id="reportType" 
+            name="reportType" 
+            required
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          >
+            <option value="">Select a reason</option>
+            <option value="spam">Spam</option>
+            <option value="harassment">Harassment</option>
+            <option value="inappropriate">Inappropriate Content</option>
+            <option value="copyright">Copyright Violation</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        
+        <div>
+          <label for="reportUrl" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Content URL (optional)
+          </label>
+          <input 
+            type="url" 
+            id="reportUrl" 
+            name="reportUrl" 
+            placeholder="https://example.com/content"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+        
+        <div>
+          <label for="reportDescription" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Description
+          </label>
+          <textarea 
+            id="reportDescription" 
+            name="reportDescription" 
+            rows="3" 
+            required
+            placeholder="Please describe the issue..."
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+          ></textarea>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+          <button 
+            type="button" 
+            id="cancelReport"
+            class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            id="submitReport"
+            class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+          >
+            Submit Report
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const privacyForm = document.getElementById('privacyControlsForm');
+    const exportBtn = document.getElementById('exportDataBtn');
+    const reportBtn = document.getElementById('reportContentBtn');
+    const reportModal = document.getElementById('reportModal');
+    const reportForm = document.getElementById('reportForm');
+    
+    // Privacy form submission
+    privacyForm?.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const btn = document.getElementById('savePrivacyBtn');
+      const text = document.getElementById('savePrivacyText');
+      const spinner = document.getElementById('savePrivacySpinner');
+      
+      // Show loading state
+      btn.disabled = true;
+      text.textContent = 'Saving...';
+      spinner?.classList.remove('hidden');
+      
+      try {
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Convert checkboxes to booleans
+        ['publicLists', 'publicRatings', 'publicActivity'].forEach(field => {
+          data[field] = formData.has(field);
+        });
+        
+        const response = await fetch('/api/user/preferences', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showNotification('Privacy settings saved successfully!', 'success');
+          setTimeout(() => window.location.reload(), 1000);
+        } else {
+          showNotification(result.error?.message || 'Failed to save settings', 'error');
+        }
+      } catch (error) {
+        console.error('Error saving privacy settings:', error);
+        showNotification('An error occurred while saving settings', 'error');
+      } finally {
+        btn.disabled = false;
+        text.textContent = 'Save Privacy Settings';
+        spinner?.classList.add('hidden');
+      }
+    });
+    
+    // Export data functionality
+    exportBtn?.addEventListener('click', async function() {
+      this.disabled = true;
+      this.innerHTML = '<svg class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Exporting...';
+      
+      try {
+        const response = await fetch('/api/user/export-data', {
+          method: 'GET',
+        });
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `media-tracker-data-${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          showNotification('Data exported successfully!', 'success');
+        } else {
+          const error = await response.json();
+          showNotification(error.error?.message || 'Failed to export data', 'error');
+        }
+      } catch (error) {
+        console.error('Error exporting data:', error);
+        showNotification('An error occurred while exporting data', 'error');
+      } finally {
+        this.disabled = false;
+        this.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Export My Data';
+      }
+    });
+    
+    // Report content modal
+    reportBtn?.addEventListener('click', function() {
+      reportModal?.classList.remove('hidden');
+    });
+    
+    document.getElementById('closeReportModal')?.addEventListener('click', function() {
+      reportModal?.classList.add('hidden');
+    });
+    
+    document.getElementById('cancelReport')?.addEventListener('click', function() {
+      reportModal?.classList.add('hidden');
+    });
+    
+    // Report form submission
+    reportForm?.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submitReport');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+      
+      try {
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        
+        const response = await fetch('/api/user/report-content', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showNotification('Report submitted successfully. Thank you for helping keep our community safe.', 'success');
+          reportModal?.classList.add('hidden');
+          this.reset();
+        } else {
+          showNotification(result.error?.message || 'Failed to submit report', 'error');
+        }
+      } catch (error) {
+        console.error('Error submitting report:', error);
+        showNotification('An error occurred while submitting the report', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit Report';
+      }
+    });
+    
+    // Close modal when clicking outside
+    reportModal?.addEventListener('click', function(e) {
+      if (e.target === this) {
+        this.classList.add('hidden');
+      }
+    });
+    
+    function showNotification(message, type = 'info') {
+      const notification = document.createElement('div');
+      const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+      notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, type === 'error' ? 5000 : 3000);
+    }
+  });
+</script>

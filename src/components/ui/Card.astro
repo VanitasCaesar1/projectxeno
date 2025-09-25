@@ -1,0 +1,46 @@
+---
+interface Props {
+  variant?: 'default' | 'elevated' | 'outlined';
+  padding?: 'none' | 'sm' | 'md' | 'lg';
+  class?: string;
+  clickable?: boolean;
+  href?: string;
+}
+
+const { 
+  variant = 'default', 
+  padding = 'md', 
+  class: className = '',
+  clickable = false,
+  href
+} = Astro.props;
+
+const baseClasses = 'bg-white dark:bg-gray-800 rounded-lg transition-all duration-200';
+
+const variants = {
+  default: 'border border-gray-200 dark:border-gray-700',
+  elevated: 'shadow-md hover:shadow-lg',
+  outlined: 'border-2 border-gray-300 dark:border-gray-600'
+};
+
+const paddings = {
+  none: '',
+  sm: 'p-3',
+  md: 'p-4',
+  lg: 'p-6'
+};
+
+const clickableClasses = clickable || href ? 'cursor-pointer hover:shadow-lg' : '';
+
+const classes = `${baseClasses} ${variants[variant]} ${paddings[padding]} ${clickableClasses} ${className}`;
+
+const Tag = href ? 'a' : 'div';
+---
+
+<Tag 
+  class={classes}
+  href={href}
+  {...Astro.props}
+>
+  <slot />
+</Tag>

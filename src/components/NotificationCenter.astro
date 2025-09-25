@@ -1,0 +1,306 @@
+---
+import { supabase } from '../lib/supabase';
+
+interface Props {
+  userId?: string;
+  showUnreadOnly?: boolean;
+  limit?: number;
+}
+
+const { userId, showUnreadOnly = false, limit = 10 } = Astro.props;
+
+let notifications: any[] = [];
+let unreadCount = 0;
+
+if (userId) {
+  try {
+    // Get notifications
+    let query = supabase
+      .from('notifications')
+      .select(`
+        *,
+        user_profiles!notifications_user_id_fkey(username, display_name, avatar_url)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (showUnreadOnly) {
+      query = query.eq('read', false);
+    }
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching notifications:', error);
+    } else {
+      notifications = data || [];
+    }
+
+    // Get unread count
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    unreadCount = count || 0;
+  } catch (error) {
+    console.error('Error in notification fetch:', error);
+  }
+}
+
+function getNotificationIcon(type: string): string {
+  switch (type) {
+    case 'like': return '❤️';
+    case 'follow': return '👥';
+    case 'review': return '📝';
+    case 'achievement': return '🏆';
+    case 'system': return '🔔';
+    default: return '📢';
+  }
+}
+
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return 'just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return date.toLocaleDateString();
+}
+---
+
+<div class="notification-center" data-user-id={userId}>
+  <div class="notification-header">
+    <h3 class="text-lg font-semibold flex items-center gap-2">
+      <span>🔔</span>
+      Notifications
+      {unreadCount > 0 && (
+        <span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+          {unreadCount}
+        </span>
+      )}
+    </h3>
+    
+    {unreadCount > 0 && (
+      <button 
+        id="mark-all-read"
+        class="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+      >
+        Mark all as read
+      </button>
+    )}
+  </div>
+
+  <div class="notification-list space-y-2 max-h-96 overflow-y-auto">
+    {notifications.length === 0 ? (
+      <div class="text-center py-8 text-gray-500">
+        <span class="text-4xl mb-2 block">📭</span>
+        <p>No notifications yet</p>
+        <p class="text-sm">We'll notify you when something interesting happens!</p>
+      </div>
+    ) : (
+      notifications.map((notification) => (
+        <div 
+          class={`notification-item p-3 rounded-lg border transition-all cursor-pointer ${
+            notification.read 
+              ? 'bg-gray-50 border-gray-200' 
+              : 'bg-blue-50 border-blue-200 shadow-sm'
+          }`}
+          data-notification-id={notification.id}
+          data-action-url={notification.action_url}
+        >
+          <div class="flex items-start gap-3">
+            <div class="flex-shrink-0 text-xl">
+              {getNotificationIcon(notification.type)}
+            </div>
+            
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between">
+                <h4 class="font-medium text-gray-900 text-sm">
+                  {notification.title}
+                </h4>
+                <span class="text-xs text-gray-500 flex-shrink-0 ml-2">
+                  {formatTimeAgo(notification.created_at)}
+                </span>
+              </div>
+              
+              <p class="text-sm text-gray-600 mt-1">
+                {notification.message}
+              </p>
+              
+              {notification.type === 'achievement' && notification.data?.rarity && (
+                <div class="mt-2">
+                  <span class={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    notification.data.rarity === 'legendary' ? 'bg-yellow-100 text-yellow-800' :
+                    notification.data.rarity === 'epic' ? 'bg-purple-100 text-purple-800' :
+                    notification.data.rarity === 'rare' ? 'bg-blue-100 text-blue-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {notification.data.rarity} • {notification.data.points} points
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {!notification.read && (
+              <div class="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+            )}
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+
+  {notifications.length > 0 && (
+    <div class="notification-footer pt-3 border-t">
+      <button 
+        id="load-more-notifications"
+        class="w-full text-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
+      >
+        Load more notifications
+      </button>
+    </div>
+  )}
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const notificationCenter = document.querySelector('.notification-center');
+    const userId = notificationCenter?.getAttribute('data-user-id');
+    
+    if (!userId) return;
+
+    // Mark notification as read when clicked
+    notificationCenter.addEventListener('click', async function(e) {
+      const notificationItem = e.target.closest('.notification-item');
+      if (!notificationItem) return;
+
+      const notificationId = notificationItem.getAttribute('data-notification-id');
+      const actionUrl = notificationItem.getAttribute('data-action-url');
+
+      // Mark as read
+      if (notificationId && !notificationItem.classList.contains('bg-gray-50')) {
+        try {
+          const response = await fetch('/api/notifications/mark-read', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ notificationId })
+          });
+
+          if (response.ok) {
+            notificationItem.classList.remove('bg-blue-50', 'border-blue-200', 'shadow-sm');
+            notificationItem.classList.add('bg-gray-50', 'border-gray-200');
+            
+            // Remove unread indicator
+            const unreadDot = notificationItem.querySelector('.w-2.h-2.bg-blue-500');
+            if (unreadDot) {
+              unreadDot.remove();
+            }
+
+            // Update unread count
+            const unreadBadge = document.querySelector('.notification-header .bg-red-500');
+            if (unreadBadge) {
+              const currentCount = parseInt(unreadBadge.textContent || '0');
+              if (currentCount <= 1) {
+                unreadBadge.remove();
+                document.getElementById('mark-all-read')?.remove();
+              } else {
+                unreadBadge.textContent = (currentCount - 1).toString();
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error marking notification as read:', error);
+        }
+      }
+
+      // Navigate to action URL if provided
+      if (actionUrl) {
+        window.location.href = actionUrl;
+      }
+    });
+
+    // Mark all as read
+    document.getElementById('mark-all-read')?.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      
+      try {
+        const response = await fetch('/api/notifications/mark-all-read', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (response.ok) {
+          // Update UI
+          document.querySelectorAll('.notification-item').forEach(item => {
+            item.classList.remove('bg-blue-50', 'border-blue-200', 'shadow-sm');
+            item.classList.add('bg-gray-50', 'border-gray-200');
+            
+            const unreadDot = item.querySelector('.w-2.h-2.bg-blue-500');
+            if (unreadDot) {
+              unreadDot.remove();
+            }
+          });
+
+          // Remove unread count and button
+          document.querySelector('.notification-header .bg-red-500')?.remove();
+          document.getElementById('mark-all-read')?.remove();
+        }
+      } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+      }
+    });
+
+    // Load more notifications
+    document.getElementById('load-more-notifications')?.addEventListener('click', async function() {
+      const currentNotifications = document.querySelectorAll('.notification-item').length;
+      
+      try {
+        const response = await fetch(`/api/notifications?offset=${currentNotifications}&limit=10`);
+        const data = await response.json();
+        
+        if (data.success && data.notifications.length > 0) {
+          // This would require more complex DOM manipulation
+          // For now, just reload the page or implement proper pagination
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Error loading more notifications:', error);
+      }
+    });
+  });
+</script>
+
+<style>
+  .notification-center {
+    @apply bg-white rounded-lg shadow-lg border max-w-md;
+  }
+  
+  .notification-header {
+    @apply p-4 border-b flex items-center justify-between;
+  }
+  
+  .notification-list {
+    @apply p-2;
+  }
+  
+  .notification-item:hover {
+    @apply transform scale-[1.02];
+  }
+  
+  .notification-footer {
+    @apply p-3 bg-gray-50 rounded-b-lg;
+  }
+</style>

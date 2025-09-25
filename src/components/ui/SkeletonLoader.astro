@@ -1,0 +1,167 @@
+---
+interface Props {
+  variant?: 'text' | 'card' | 'avatar' | 'image' | 'custom' | 'media-card' | 'media-grid';
+  lines?: number;
+  width?: string;
+  height?: string;
+  class?: string;
+  count?: number;
+  animated?: boolean;
+}
+
+const { 
+  variant = 'text', 
+  lines = 3, 
+  width = 'w-full', 
+  height = 'h-4',
+  class: className = '',
+  count = 1,
+  animated = true
+} = Astro.props;
+
+const baseClasses = `${animated ? 'animate-pulse' : ''} bg-gray-200 dark:bg-gray-700 rounded`;
+---
+
+{variant === 'text' && (
+  <div class={`space-y-2 ${className}`}>
+    {Array.from({ length: lines }, (_, i) => (
+      <div 
+        class={`${baseClasses} ${height} ${i === lines - 1 ? 'w-3/4' : width}`}
+        key={i}
+      ></div>
+    ))}
+  </div>
+)}
+
+{variant === 'card' && (
+  <div class={`${baseClasses} ${className}`}>
+    <div class="p-4 space-y-3">
+      <div class="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
+      <div class="space-y-2">
+        <div class="h-3 bg-gray-300 dark:bg-gray-600 rounded"></div>
+        <div class="h-3 bg-gray-300 dark:bg-gray-600 rounded w-5/6"></div>
+      </div>
+    </div>
+  </div>
+)}
+
+{variant === 'avatar' && (
+  <div class={`${baseClasses} rounded-full ${width || 'w-10'} ${height || 'h-10'} ${className}`}></div>
+)}
+
+{variant === 'image' && (
+  <div class={`${baseClasses} ${width || 'w-full'} ${height || 'h-48'} ${className}`}></div>
+)}
+
+{variant === 'custom' && (
+  <div class={`${baseClasses} ${width} ${height} ${className}`}></div>
+)}
+
+{variant === 'media-card' && (
+  <div class={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden ${className}`}>
+    <div class="flex flex-col sm:flex-row">
+      <div class={`${baseClasses} w-full h-48 sm:w-24 sm:h-36 flex-shrink-0`}></div>
+      <div class="flex-1 p-3 sm:p-4">
+        <div class={`${baseClasses} h-4 mb-2 w-3/4`}></div>
+        <div class="flex gap-2 mb-2">
+          <div class={`${baseClasses} h-6 w-16`}></div>
+          <div class={`${baseClasses} h-6 w-12`}></div>
+        </div>
+        <div class={`${baseClasses} h-3 mb-1`}></div>
+        <div class={`${baseClasses} h-3 w-4/5`}></div>
+      </div>
+    </div>
+  </div>
+)}
+
+{variant === 'media-grid' && (
+  <div class={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 ${className}`}>
+    {Array.from({ length: count }, (_, i) => (
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden" key={i}>
+        <div class="flex flex-col sm:flex-row">
+          <div class={`${baseClasses} w-full h-48 sm:w-24 sm:h-36 flex-shrink-0`}></div>
+          <div class="flex-1 p-3 sm:p-4">
+            <div class={`${baseClasses} h-4 mb-2 w-3/4`}></div>
+            <div class="flex gap-2 mb-2">
+              <div class={`${baseClasses} h-6 w-16`}></div>
+              <div class={`${baseClasses} h-6 w-12`}></div>
+            </div>
+            <div class={`${baseClasses} h-3 mb-1`}></div>
+            <div class={`${baseClasses} h-3 w-4/5`}></div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+
+<style>
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  @keyframes shimmer {
+    0% {
+      background-position: -200px 0;
+    }
+    100% {
+      background-position: calc(200px + 100%) 0;
+    }
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Enhanced shimmer effect for better visual feedback */
+  .animate-pulse {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200px 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .dark .animate-pulse {
+    background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+    background-size: 200px 100%;
+  }
+
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse {
+      animation: none;
+      background: #f0f0f0;
+    }
+    
+    .dark .animate-pulse {
+      background: #374151;
+    }
+  }
+
+  /* Performance optimization: use transform instead of background-position on supported browsers */
+  @supports (transform: translateX(0)) {
+    .animate-pulse::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      animation: shimmer-transform 1.5s infinite;
+    }
+    
+    @keyframes shimmer-transform {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(300%);
+      }
+    }
+  }
+</style>

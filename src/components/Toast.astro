@@ -1,0 +1,262 @@
+---
+// Toast notification component for displaying temporary messages
+---
+
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full sm:max-w-md"></div>
+
+<script>
+  interface ToastOptions {
+    type?: 'success' | 'error' | 'warning' | 'info';
+    duration?: number;
+    persistent?: boolean;
+    action?: {
+      label: string;
+      handler: () => void;
+    };
+  }
+
+  class ToastManager {
+    private container: HTMLElement;
+    private toasts: Map<string, HTMLElement> = new Map();
+
+    constructor() {
+      this.container = document.getElementById('toast-container')!;
+      this.init();
+    }
+
+    private init() {
+      // Listen for custom toast events
+      document.addEventListener('show-toast', this.handleToastEvent.bind(this));
+    }
+
+    private handleToastEvent(event: CustomEvent) {
+      const { message, options } = event.detail;
+      this.show(message, options);
+    }
+
+    show(message: string, options: ToastOptions = {}): string {
+      const {
+        type = 'info',
+        duration = 5000,
+        persistent = false,
+        action
+      } = options;
+
+      const toastId = this.generateId();
+      const toast = this.createToastElement(toastId, message, type, action);
+      
+      this.container.appendChild(toast);
+      this.toasts.set(toastId, toast);
+
+      // Animate in
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-x-full', 'opacity-0');
+        toast.classList.add('translate-x-0', 'opacity-100');
+      });
+
+      // Auto-dismiss if not persistent
+      if (!persistent) {
+        setTimeout(() => this.dismiss(toastId), duration);
+      }
+
+      return toastId;
+    }
+
+    dismiss(toastId: string) {
+      const toast = this.toasts.get(toastId);
+      if (!toast) return;
+
+      // Animate out
+      toast.classList.remove('translate-x-0', 'opacity-100');
+      toast.classList.add('translate-x-full', 'opacity-0');
+
+      // Remove from DOM after animation
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+        this.toasts.delete(toastId);
+      }, 300);
+    }
+
+    dismissAll() {
+      this.toasts.forEach((_, toastId) => this.dismiss(toastId));
+    }
+
+    private createToastElement(
+      id: string,
+      message: string,
+      type: string,
+      action?: ToastOptions['action']
+    ): HTMLElement {
+      const toast = document.createElement('div');
+      toast.id = id;
+      toast.className = `
+        transform transition-all duration-300 ease-in-out translate-x-full opacity-0
+        w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto
+        ring-1 ring-black ring-opacity-5 dark:ring-white dark:ring-opacity-10 overflow-hidden
+        mobile-stack
+      `;
+
+      const { bgColor, iconColor, icon } = this.getTypeStyles(type);
+
+      toast.innerHTML = `
+        <div class="p-4">
+          <div class="flex items-start">
+            <div class="flex-shrink-0">
+              <div class="${bgColor} rounded-full p-1">
+                ${icon}
+              </div>
+            </div>
+            <div class="ml-3 w-0 flex-1 pt-0.5">
+              <p class="text-sm font-medium text-gray-900 dark:text-white">
+                ${message}
+              </p>
+              ${action ? `
+                <div class="mt-3 flex space-x-7">
+                  <button 
+                    class="toast-action bg-white dark:bg-gray-800 rounded-md text-sm font-medium text-${iconColor}-600 hover:text-${iconColor}-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${iconColor}-500"
+                  >
+                    ${action.label}
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+            <div class="ml-4 flex-shrink-0 flex">
+              <button 
+                class="toast-dismiss bg-white dark:bg-gray-800 rounded-md inline-flex text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <span class="sr-only">Close</span>
+                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Add event listeners
+      const dismissButton = toast.querySelector('.toast-dismiss');
+      dismissButton?.addEventListener('click', () => this.dismiss(id));
+
+      if (action) {
+        const actionButton = toast.querySelector('.toast-action');
+        actionButton?.addEventListener('click', () => {
+          action.handler();
+          this.dismiss(id);
+        });
+      }
+
+      return toast;
+    }
+
+    private getTypeStyles(type: string) {
+      switch (type) {
+        case 'success':
+          return {
+            bgColor: 'bg-green-100 dark:bg-green-900',
+            iconColor: 'green',
+            icon: `<svg class="h-5 w-5 text-green-600 dark:text-green-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>`
+          };
+        case 'error':
+          return {
+            bgColor: 'bg-red-100 dark:bg-red-900',
+            iconColor: 'red',
+            icon: `<svg class="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>`
+          };
+        case 'warning':
+          return {
+            bgColor: 'bg-yellow-100 dark:bg-yellow-900',
+            iconColor: 'yellow',
+            icon: `<svg class="h-5 w-5 text-yellow-600 dark:text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>`
+          };
+        default:
+          return {
+            bgColor: 'bg-blue-100 dark:bg-blue-900',
+            iconColor: 'blue',
+            icon: `<svg class="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+            </svg>`
+          };
+      }
+    }
+
+    private generateId(): string {
+      return `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+  }
+
+  // Global toast manager instance
+  let toastManager: ToastManager;
+
+  // Initialize when DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    toastManager = new ToastManager();
+  });
+
+  // Global toast functions
+  window.showToast = (message: string, options?: ToastOptions) => {
+    if (toastManager) {
+      return toastManager.show(message, options);
+    } else {
+      // Fallback for when manager isn't ready
+      document.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message, options }
+      }));
+      return '';
+    }
+  };
+
+  window.dismissToast = (toastId: string) => {
+    if (toastManager) {
+      toastManager.dismiss(toastId);
+    }
+  };
+
+  window.dismissAllToasts = () => {
+    if (toastManager) {
+      toastManager.dismissAll();
+    }
+  };
+
+  // Utility functions for common toast types
+  window.showSuccessToast = (message: string, duration?: number) => {
+    return window.showToast(message, { type: 'success', duration });
+  };
+
+  window.showErrorToast = (message: string, persistent?: boolean) => {
+    return window.showToast(message, { 
+      type: 'error', 
+      duration: persistent ? 0 : 8000,
+      persistent 
+    });
+  };
+
+  window.showWarningToast = (message: string, duration?: number) => {
+    return window.showToast(message, { type: 'warning', duration });
+  };
+
+  window.showInfoToast = (message: string, duration?: number) => {
+    return window.showToast(message, { type: 'info', duration });
+  };
+
+  // Type declarations for global functions
+  declare global {
+    interface Window {
+      showToast: (message: string, options?: ToastOptions) => string;
+      dismissToast: (toastId: string) => void;
+      dismissAllToasts: () => void;
+      showSuccessToast: (message: string, duration?: number) => string;
+      showErrorToast: (message: string, persistent?: boolean) => string;
+      showWarningToast: (message: string, duration?: number) => string;
+      showInfoToast: (message: string, duration?: number) => string;
+    }
+  }
+</script>

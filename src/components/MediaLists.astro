@@ -1,0 +1,1428 @@
+---
+import type {
+  UserMediaWithMedia,
+  MediaType,
+  UserMediaStatus,
+} from "../types/database";
+import StatusSelector from "./StatusSelector.astro";
+import MediaCard from "./MediaCard.astro";
+
+export interface Props {
+  userId?: string;
+  mediaType?: MediaType;
+  status?: UserMediaStatus;
+  viewMode?: "grid" | "list" | "compact";
+  showFilters?: boolean;
+  showStats?: boolean;
+  isOwnProfile?: boolean;
+  limit?: number;
+}
+
+const {
+  userId,
+  mediaType,
+  status,
+  viewMode = "grid",
+  showFilters = true,
+  showStats = true,
+  isOwnProfile = false,
+  limit,
+} = Astro.props;
+
+// This would typically fetch data from the API
+// For now, we'll structure the component to handle the data when it's passed in
+const mediaLists: UserMediaWithMedia[] = [];
+
+const statusOptions = [
+  { value: "all", label: "All Items", icon: "📚", count: 0 },
+  { value: "completed", label: "Completed", icon: "✅", count: 0 },
+  { value: "watching", label: "Currently Watching", icon: "▶️", count: 0 },
+  { value: "plan_to_watch", label: "Plan to Watch", icon: "📋", count: 0 },
+  { value: "on_hold", label: "On Hold", icon: "⏸️", count: 0 },
+  { value: "dropped", label: "Dropped", icon: "❌", count: 0 },
+];
+
+const mediaTypeOptions = [
+  { value: "all", label: "All Media", icon: "🎬" },
+  { value: "movie", label: "Movies", icon: "🎬" },
+  { value: "tv", label: "TV Shows", icon: "📺" },
+  { value: "anime", label: "Anime", icon: "🎌" },
+  { value: "book", label: "Books", icon: "📚" },
+];
+
+const viewModeOptions = [
+  { value: "grid", label: "Grid View", icon: "⊞" },
+  { value: "list", label: "List View", icon: "☰" },
+  { value: "compact", label: "Compact View", icon: "≡" },
+];
+
+const sortOptions = [
+  { value: "updated_desc", label: "Recently Updated" },
+  { value: "updated_asc", label: "Oldest Updated" },
+  { value: "title_asc", label: "Title A-Z" },
+  { value: "title_desc", label: "Title Z-A" },
+  { value: "rating_desc", label: "Highest Rated" },
+  { value: "rating_asc", label: "Lowest Rated" },
+  { value: "date_added_desc", label: "Recently Added" },
+  { value: "date_added_asc", label: "Oldest Added" },
+];
+---
+
+<div class="media-lists-container" data-user-id={userId}>
+  <!-- Header with stats and controls -->
+  {
+    showStats && (
+      <div class="lists-header">
+        <div class="stats-overview">
+          <div class="stat-item">
+            <span class="stat-number" data-stat="total">
+              0
+            </span>
+            <span class="stat-label">Total Items</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number" data-stat="completed">
+              0
+            </span>
+            <span class="stat-label">Completed</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number" data-stat="watching">
+              0
+            </span>
+            <span class="stat-label">Watching</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number" data-stat="planned">
+              0
+            </span>
+            <span class="stat-label">Planned</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  <!-- Filters and controls -->
+  {
+    showFilters && (
+      <div class="filters-section">
+        <div class="filter-group">
+          <label class="filter-label">Status:</label>
+          <select class="filter-select" data-filter="status">
+            {statusOptions.map((option) => (
+              <option
+                value={option.value}
+                selected={option.value === (status || "all")}
+              >
+                {option.icon} {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">Type:</label>
+          <select class="filter-select" data-filter="mediaType">
+            {mediaTypeOptions.map((option) => (
+              <option
+                value={option.value}
+                selected={option.value === (mediaType || "all")}
+              >
+                {option.icon} {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-label">Sort:</label>
+          <select class="filter-select" data-filter="sort">
+            {sortOptions.map((option) => (
+              <option value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div class="view-controls">
+          {viewModeOptions.map((option) => (
+            <button
+              class={`view-mode-btn ${option.value === viewMode ? "active" : ""}`}
+              data-view-mode={option.value}
+              title={option.label}
+            >
+              {option.icon}
+            </button>
+          ))}
+        </div>
+
+        <div class="search-box">
+          <input
+            type="text"
+            placeholder="Search your lists..."
+            class="search-input"
+            data-search="lists"
+          />
+          <span class="search-icon">🔍</span>
+        </div>
+      </div>
+    )
+  }
+
+  <!-- Status tabs for mobile -->
+  <div class="status-tabs mobile-only">
+    {
+      statusOptions.map((option) => (
+        <button
+          class={`status-tab ${option.value === (status || "all") ? "active" : ""}`}
+          data-status={option.value}
+        >
+          <span class="tab-icon">{option.icon}</span>
+          <span class="tab-label">{option.label}</span>
+          <span class="tab-count" data-count={option.value}>
+            0
+          </span>
+        </button>
+      ))
+    }
+  </div>
+
+  <!-- Loading state -->
+  <div class="loading-state">
+    <div class="loading-grid">
+      {
+        Array.from({ length: 8 }).map(() => (
+          <div class="loading-card">
+            <div class="loading-poster" />
+            <div class="loading-content">
+              <div class="loading-title" />
+              <div class="loading-meta" />
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty-state hidden">
+    <div class="empty-icon">📚</div>
+    <h3 class="empty-title">No items found</h3>
+    <p class="empty-description">
+      <span class="empty-message-default"
+        >Start building your media collection by searching and adding items to
+        your lists.</span
+      >
+      <span class="empty-message-filtered hidden"
+        >Try adjusting your filters to see more results.</span
+      >
+    </p>
+    {
+      isOwnProfile && (
+        <a href="/search" class="empty-action-btn">
+          Browse Media
+        </a>
+      )
+    }
+  </div>
+
+  <!-- Error state -->
+  <div class="error-state hidden">
+    <div class="error-icon">⚠️</div>
+    <h3 class="error-title">Failed to load lists</h3>
+    <p class="error-description">
+      There was an error loading your media lists.
+    </p>
+    <button class="error-retry-btn">Try Again</button>
+  </div>
+
+  <!-- Media lists content -->
+  <div class="lists-content">
+    <!-- Grid view -->
+    <div class={`media-grid ${viewMode === "grid" ? "" : "hidden"}`}>
+      <!-- Media items will be populated here -->
+    </div>
+
+    <!-- List view -->
+    <div class={`media-list ${viewMode === "list" ? "" : "hidden"}`}>
+      <!-- Media items will be populated here -->
+    </div>
+
+    <!-- Compact view -->
+    <div class={`media-compact ${viewMode === "compact" ? "" : "hidden"}`}>
+      <!-- Media items will be populated here -->
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-container hidden">
+    <button class="pagination-btn prev" disabled> ← Previous </button>
+
+    <div class="pagination-info">
+      <span class="page-info"
+        >Page <span class="current-page">1</span> of <span class="total-pages"
+          >1</span
+        ></span
+      >
+      <span class="items-info">(<span class="total-items">0</span> items)</span>
+    </div>
+
+    <button class="pagination-btn next"> Next → </button>
+  </div>
+</div>
+
+<style>
+  .media-lists-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* Header and stats */
+  .lists-header {
+    margin-bottom: 2rem;
+  }
+
+  .stats-overview {
+    display: flex;
+    gap: 2rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 1rem;
+    color: white;
+  }
+
+  .stat-item {
+    text-align: center;
+    flex: 1;
+  }
+
+  .stat-number {
+    display: block;
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+  }
+
+  /* Filters */
+  .filters-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .filter-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #6b7280;
+  }
+
+  .filter-select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background: white;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .filter-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .view-controls {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+  }
+
+  .view-mode-btn {
+    padding: 0.5rem;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+  }
+
+  .view-mode-btn:hover {
+    background: #f3f4f6;
+  }
+
+  .view-mode-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+
+  .search-box {
+    position: relative;
+    margin-left: 1rem;
+  }
+
+  .search-input {
+    padding: 0.5rem 2.5rem 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    width: 200px;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7280;
+  }
+
+  /* Status tabs for mobile */
+  .status-tabs {
+    display: none;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    overflow-x: auto;
+    padding: 0.5rem 0;
+  }
+
+  .status-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    min-width: 80px;
+  }
+
+  .status-tab:hover {
+    background: #f3f4f6;
+  }
+
+  .status-tab.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+
+  .tab-count {
+    font-weight: bold;
+    font-size: 0.625rem;
+    opacity: 0.8;
+  }
+
+  /* Loading state */
+  .loading-state {
+    margin: 2rem 0;
+  }
+
+  .loading-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .loading-card {
+    background: white;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .loading-poster {
+    width: 100%;
+    height: 280px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+  }
+
+  .loading-content {
+    padding: 1rem;
+  }
+
+  .loading-title {
+    height: 1rem;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .loading-meta {
+    height: 0.75rem;
+    width: 60%;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 0.25rem;
+  }
+
+  @keyframes loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Empty and error states */
+  .empty-state,
+  .error-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6b7280;
+  }
+
+  .empty-icon,
+  .error-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .empty-title,
+  .error-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-description,
+  .error-description {
+    margin-bottom: 1.5rem;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .empty-action-btn,
+  .error-retry-btn {
+    padding: 0.75rem 1.5rem;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.2s ease;
+  }
+
+  .empty-action-btn:hover,
+  .error-retry-btn:hover {
+    background: #2563eb;
+  }
+
+  /* Content views */
+  .media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .media-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .media-compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  /* Pagination */
+  .pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    margin-top: 2rem;
+  }
+
+  .pagination-btn {
+    padding: 0.5rem 1rem;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+  }
+
+  .pagination-btn:hover:not(:disabled) {
+    background: #2563eb;
+  }
+
+  .pagination-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  .pagination-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .stats-overview {
+      gap: 1rem;
+    }
+
+    .stat-number {
+      font-size: 1.5rem;
+    }
+
+    .filters-section {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .filter-group {
+      justify-content: space-between;
+    }
+
+    .view-controls {
+      margin-left: 0;
+      justify-content: center;
+    }
+
+    .search-box {
+      margin-left: 0;
+    }
+
+    .search-input {
+      width: 100%;
+    }
+
+    .status-tabs {
+      display: flex;
+    }
+
+    .mobile-only {
+      display: flex !important;
+    }
+
+    .media-grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .pagination-container {
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .pagination-info {
+      order: -1;
+    }
+  }
+
+  /* Dark mode */
+  @media (prefers-color-scheme: dark) {
+    .filters-section,
+    .loading-card,
+    .pagination-container {
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+    .filter-select {
+      background: #1f2937;
+      border-color: #374151;
+      color: #f9fafb;
+    }
+
+    .view-mode-btn {
+      background: #1f2937;
+      border-color: #374151;
+      color: #f9fafb;
+    }
+
+    .view-mode-btn:hover {
+      background: #374151;
+    }
+
+    .search-input {
+      background: #1f2937;
+      border-color: #374151;
+      color: #f9fafb;
+    }
+
+    .status-tab {
+      background: #1f2937;
+      border-color: #374151;
+      color: #f9fafb;
+    }
+
+    .status-tab:hover {
+      background: #374151;
+    }
+
+    .empty-title,
+    .error-title {
+      color: #f9fafb;
+    }
+  }
+</style>
+
+<script>
+  class MediaLists {
+    private container: HTMLElement;
+    private userId: string | null;
+    private currentFilters: {
+      status: string;
+      mediaType: string;
+      sort: string;
+      search: string;
+    };
+    private currentPage: number = 1;
+    private isLoading: boolean = false;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.userId = container.dataset.userId || null;
+      this.currentFilters = {
+        status: "all",
+        mediaType: "all",
+        sort: "updated_desc",
+        search: "",
+      };
+
+      this.init();
+      this.loadLists();
+    }
+
+    private init() {
+      // Filter controls
+      const filterSelects = this.container.querySelectorAll(".filter-select");
+      filterSelects.forEach((select) => {
+        select.addEventListener("change", (e) => {
+          const target = e.target as HTMLSelectElement;
+          const filterType = target.dataset.filter!;
+          this.currentFilters[filterType as keyof typeof this.currentFilters] =
+            target.value;
+          this.currentPage = 1;
+          this.loadLists();
+        });
+      });
+
+      // View mode buttons
+      const viewModeButtons = this.container.querySelectorAll(".view-mode-btn");
+      viewModeButtons.forEach((button) => {
+        button.addEventListener("click", (e) => {
+          const target = e.target as HTMLElement;
+          const viewMode = target.dataset.viewMode!;
+          this.switchViewMode(viewMode);
+        });
+      });
+
+      // Status tabs (mobile)
+      const statusTabs = this.container.querySelectorAll(".status-tab");
+      statusTabs.forEach((tab) => {
+        tab.addEventListener("click", (e) => {
+          const target = e.target as HTMLElement;
+          const status = target.dataset.status!;
+          this.currentFilters.status = status;
+          this.currentPage = 1;
+          this.updateStatusTabs(status);
+          this.loadLists();
+        });
+      });
+
+      // Search input
+      const searchInput = this.container.querySelector(
+        ".search-input"
+      ) as HTMLInputElement;
+      if (searchInput) {
+        let searchTimeout: NodeJS.Timeout;
+        searchInput.addEventListener("input", (e) => {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => {
+            this.currentFilters.search = (e.target as HTMLInputElement).value;
+            this.currentPage = 1;
+            this.loadLists();
+          }, 300);
+        });
+      }
+
+      // Pagination
+      const prevBtn = this.container.querySelector(".pagination-btn.prev");
+      const nextBtn = this.container.querySelector(".pagination-btn.next");
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", () => {
+          if (this.currentPage > 1) {
+            this.currentPage--;
+            this.loadLists();
+          }
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", () => {
+          this.currentPage++;
+          this.loadLists();
+        });
+      }
+
+      // Error retry
+      const retryBtn = this.container.querySelector(".error-retry-btn");
+      if (retryBtn) {
+        retryBtn.addEventListener("click", () => {
+          this.loadLists();
+        });
+      }
+    }
+
+    private async loadLists() {
+      if (this.isLoading) return;
+
+      this.showLoading();
+
+      try {
+        const params = new URLSearchParams({
+          page: this.currentPage.toString(),
+          limit: "20",
+          ...this.currentFilters,
+        });
+
+        // Remove 'all' values
+        if (params.get("status") === "all") params.delete("status");
+        if (params.get("mediaType") === "all") params.delete("mediaType");
+        if (!params.get("search")) params.delete("search");
+
+        const response = await fetch(`/api/user/media?${params}`);
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error?.message || "Failed to load lists");
+        }
+
+        this.renderLists(result.data || []);
+        this.updatePagination(result.pagination);
+        this.updateStats(result.data || []);
+        this.hideLoading();
+
+        // Show empty state if no results
+        if (!result.data || result.data.length === 0) {
+          this.showEmptyState();
+        }
+      } catch (error) {
+        console.error("Error loading lists:", error);
+        this.showError(
+          error instanceof Error ? error.message : "Failed to load lists"
+        );
+      }
+    }
+
+    private renderLists(lists: any[]) {
+      const gridContainer = this.container.querySelector(".media-grid");
+      const listContainer = this.container.querySelector(".media-list");
+      const compactContainer = this.container.querySelector(".media-compact");
+
+      if (gridContainer) {
+        gridContainer.innerHTML = lists
+          .map((item) => this.renderGridItem(item))
+          .join("");
+      }
+
+      if (listContainer) {
+        listContainer.innerHTML = lists
+          .map((item) => this.renderListItem(item))
+          .join("");
+      }
+
+      if (compactContainer) {
+        compactContainer.innerHTML = lists
+          .map((item) => this.renderCompactItem(item))
+          .join("");
+      }
+
+      // Initialize status selectors for new items
+      this.initializeStatusSelectors();
+    }
+
+    private renderGridItem(item: any): string {
+      return `
+        <div class="media-item-card" data-media-id="${item.media_id}">
+          <div class="media-poster">
+            <img src="${item.media.poster_url || "/placeholder-poster.jpg"}" 
+                 alt="${item.media.title}" 
+                 loading="lazy" />
+            <div class="media-overlay">
+              <div class="status-selector compact" 
+                   data-media-id="${item.media_id}"
+                   data-media-type="${item.media.media_type}"
+                   data-current-status="${item.status}">
+                <!-- Status selector will be initialized here -->
+              </div>
+            </div>
+          </div>
+          <div class="media-info">
+            <h3 class="media-title">${item.media.title}</h3>
+            <p class="media-meta">
+              ${item.media.media_type} • ${item.media.release_date ? new Date(item.media.release_date).getFullYear() : "N/A"}
+            </p>
+            ${item.rating ? `<div class="media-rating">★ ${item.rating}/10</div>` : ""}
+            <div class="media-progress">
+              Updated ${new Date(item.updated_at).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    private renderListItem(item: any): string {
+      return `
+        <div class="media-list-item" data-media-id="${item.media_id}">
+          <div class="list-item-poster">
+            <img src="${item.media.poster_url || "/placeholder-poster.jpg"}" 
+                 alt="${item.media.title}" />
+          </div>
+          <div class="list-item-content">
+            <div class="list-item-header">
+              <h3 class="list-item-title">${item.media.title}</h3>
+              <div class="status-selector inline" 
+                   data-media-id="${item.media_id}"
+                   data-media-type="${item.media.media_type}"
+                   data-current-status="${item.status}">
+                <!-- Status selector will be initialized here -->
+              </div>
+            </div>
+            <p class="list-item-meta">
+              ${item.media.media_type} • ${item.media.release_date ? new Date(item.media.release_date).getFullYear() : "N/A"}
+            </p>
+            ${item.media.description ? `<p class="list-item-description">${item.media.description.substring(0, 150)}...</p>` : ""}
+            <div class="list-item-footer">
+              ${item.rating ? `<span class="list-item-rating">★ ${item.rating}/10</span>` : ""}
+              <span class="list-item-updated">Updated ${new Date(item.updated_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    private renderCompactItem(item: any): string {
+      return `
+        <div class="media-compact-item" data-media-id="${item.media_id}">
+          <div class="compact-poster">
+            <img src="${item.media.poster_url || "/placeholder-poster.jpg"}" 
+                 alt="${item.media.title}" />
+          </div>
+          <div class="compact-info">
+            <h4 class="compact-title">${item.media.title}</h4>
+            ${item.rating ? `<div class="compact-rating">★ ${item.rating}</div>` : ""}
+          </div>
+          <div class="status-selector compact sm" 
+               data-media-id="${item.media_id}"
+               data-media-type="${item.media.media_type}"
+               data-current-status="${item.status}">
+            <!-- Status selector will be initialized here -->
+          </div>
+        </div>
+      `;
+    }
+
+    private initializeStatusSelectors() {
+      // Trigger event to initialize new status selectors
+      const statusSelectors = this.container.querySelectorAll(
+        ".status-selector:not([data-initialized])"
+      );
+      statusSelectors.forEach((selector) => {
+        selector.setAttribute("data-initialized", "true");
+        document.dispatchEvent(
+          new CustomEvent("statusSelectorAdded", {
+            detail: { container: selector },
+          })
+        );
+      });
+    }
+
+    private switchViewMode(viewMode: string) {
+      // Update button states
+      const viewModeButtons = this.container.querySelectorAll(".view-mode-btn");
+      viewModeButtons.forEach((btn) => {
+        const btnElement = btn as HTMLElement;
+        btnElement.classList.toggle(
+          "active",
+          btnElement.dataset.viewMode === viewMode
+        );
+      });
+
+      // Show/hide view containers
+      const viewContainers = this.container.querySelectorAll(
+        ".media-grid, .media-list, .media-compact"
+      );
+      viewContainers.forEach((container) => {
+        container.classList.add("hidden");
+      });
+
+      const activeContainer = this.container.querySelector(
+        `.media-${viewMode}`
+      );
+      if (activeContainer) {
+        activeContainer.classList.remove("hidden");
+      }
+    }
+
+    private updateStatusTabs(activeStatus: string) {
+      const statusTabs = this.container.querySelectorAll(".status-tab");
+      statusTabs.forEach((tab) => {
+        const tabElement = tab as HTMLElement;
+        tabElement.classList.toggle(
+          "active",
+          tabElement.dataset.status === activeStatus
+        );
+      });
+    }
+
+    private updatePagination(pagination: any) {
+      if (!pagination) return;
+
+      const paginationContainer = this.container.querySelector(
+        ".pagination-container"
+      );
+      const prevBtn = this.container.querySelector(
+        ".pagination-btn.prev"
+      ) as HTMLButtonElement;
+      const nextBtn = this.container.querySelector(
+        ".pagination-btn.next"
+      ) as HTMLButtonElement;
+      const currentPageSpan = this.container.querySelector(".current-page");
+      const totalPagesSpan = this.container.querySelector(".total-pages");
+      const totalItemsSpan = this.container.querySelector(".total-items");
+
+      if (paginationContainer) {
+        paginationContainer.classList.toggle(
+          "hidden",
+          pagination.totalPages <= 1
+        );
+      }
+
+      if (prevBtn) {
+        prevBtn.disabled = pagination.page <= 1;
+      }
+
+      if (nextBtn) {
+        nextBtn.disabled = pagination.page >= pagination.totalPages;
+      }
+
+      if (currentPageSpan)
+        currentPageSpan.textContent = pagination.page.toString();
+      if (totalPagesSpan)
+        totalPagesSpan.textContent = pagination.totalPages.toString();
+      if (totalItemsSpan)
+        totalItemsSpan.textContent = pagination.total.toString();
+    }
+
+    private updateStats(lists: any[]) {
+      const stats = {
+        total: lists.length,
+        completed: lists.filter((item) => item.status === "completed").length,
+        watching: lists.filter((item) => item.status === "watching").length,
+        planned: lists.filter((item) => item.status === "plan_to_watch").length,
+      };
+
+      Object.entries(stats).forEach(([key, value]) => {
+        const statElement = this.container.querySelector(
+          `[data-stat="${key}"]`
+        );
+        if (statElement) {
+          statElement.textContent = value.toString();
+        }
+      });
+
+      // Update status tab counts
+      const statusCounts = {
+        all: lists.length,
+        completed: stats.completed,
+        watching: stats.watching,
+        plan_to_watch: stats.planned,
+        on_hold: lists.filter((item) => item.status === "on_hold").length,
+        dropped: lists.filter((item) => item.status === "dropped").length,
+      };
+
+      Object.entries(statusCounts).forEach(([status, count]) => {
+        const countElement = this.container.querySelector(
+          `[data-count="${status}"]`
+        );
+        if (countElement) {
+          countElement.textContent = count.toString();
+        }
+      });
+    }
+
+    private showLoading() {
+      this.isLoading = true;
+      this.container
+        .querySelector(".loading-state")
+        ?.classList.remove("hidden");
+      this.container.querySelector(".lists-content")?.classList.add("hidden");
+      this.container.querySelector(".empty-state")?.classList.add("hidden");
+      this.container.querySelector(".error-state")?.classList.add("hidden");
+    }
+
+    private hideLoading() {
+      this.isLoading = false;
+      this.container.querySelector(".loading-state")?.classList.add("hidden");
+      this.container
+        .querySelector(".lists-content")
+        ?.classList.remove("hidden");
+    }
+
+    private showEmptyState() {
+      this.container.querySelector(".empty-state")?.classList.remove("hidden");
+      this.container.querySelector(".lists-content")?.classList.add("hidden");
+
+      // Show appropriate empty message
+      const hasFilters =
+        this.currentFilters.status !== "all" ||
+        this.currentFilters.mediaType !== "all" ||
+        this.currentFilters.search !== "";
+
+      const defaultMessage = this.container.querySelector(
+        ".empty-message-default"
+      );
+      const filteredMessage = this.container.querySelector(
+        ".empty-message-filtered"
+      );
+
+      if (defaultMessage && filteredMessage) {
+        defaultMessage.classList.toggle("hidden", hasFilters);
+        filteredMessage.classList.toggle("hidden", !hasFilters);
+      }
+    }
+
+    private showError(message: string) {
+      this.isLoading = false;
+      this.container.querySelector(".error-state")?.classList.remove("hidden");
+      this.container.querySelector(".loading-state")?.classList.add("hidden");
+      this.container.querySelector(".lists-content")?.classList.add("hidden");
+      this.container.querySelector(".empty-state")?.classList.add("hidden");
+    }
+  }
+
+  // Initialize all MediaLists components on the page
+  document.addEventListener("DOMContentLoaded", () => {
+    const containers = document.querySelectorAll(".media-lists-container");
+    containers.forEach((container) => {
+      new MediaLists(container as HTMLElement);
+    });
+  });
+</script>
+<style>
+  /* Media item cards for grid view */
+  .media-item-card {
+    background: white;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    position: relative;
+  }
+
+  .media-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .media-poster {
+    position: relative;
+    aspect-ratio: 2/3;
+    overflow: hidden;
+  }
+
+  .media-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .media-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .media-item-card:hover .media-overlay {
+    opacity: 1;
+  }
+
+  .media-info {
+    padding: 1rem;
+  }
+
+  .media-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .media-meta {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+    text-transform: capitalize;
+  }
+
+  .media-rating {
+    font-size: 0.75rem;
+    color: #f59e0b;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+  }
+
+  .media-progress {
+    font-size: 0.625rem;
+    color: #9ca3af;
+  }
+
+  /* List view items */
+  .media-list-item {
+    display: flex;
+    gap: 1rem;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    transition: all 0.2s ease;
+  }
+
+  .media-list-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .list-item-poster {
+    flex-shrink: 0;
+    width: 80px;
+    height: 120px;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .list-item-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .list-item-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .list-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .list-item-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.3;
+    flex: 1;
+  }
+
+  .list-item-meta {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+    text-transform: capitalize;
+  }
+
+  .list-item-description {
+    font-size: 0.875rem;
+    color: #4b5563;
+    line-height: 1.4;
+    margin-bottom: 0.75rem;
+  }
+
+  .list-item-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  .list-item-rating {
+    color: #f59e0b;
+    font-weight: 500;
+  }
+
+  /* Compact view items */
+  .media-compact-item {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .media-compact-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .compact-poster {
+    width: 60px;
+    height: 90px;
+    margin: 0 auto 0.5rem;
+    border-radius: 0.375rem;
+    overflow: hidden;
+  }
+
+  .compact-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .compact-info {
+    margin-bottom: 0.5rem;
+  }
+
+  .compact-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #1f2937;
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .compact-rating {
+    font-size: 0.625rem;
+    color: #f59e0b;
+    font-weight: 500;
+  }
+
+  /* Dark mode for media items */
+  @media (prefers-color-scheme: dark) {
+    .media-item-card,
+    .media-list-item,
+    .media-compact-item {
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+    .media-title,
+    .list-item-title,
+    .compact-title {
+      color: #f9fafb;
+    }
+
+    .media-meta,
+    .list-item-meta {
+      color: #9ca3af;
+    }
+
+    .list-item-description {
+      color: #d1d5db;
+    }
+
+    .media-progress,
+    .list-item-footer {
+      color: #9ca3af;
+    }
+  }
+
+  /* Mobile responsive for media items */
+  @media (max-width: 768px) {
+    .list-item-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .list-item-poster {
+      width: 60px;
+      height: 90px;
+    }
+
+    .media-list-item {
+      padding: 0.75rem;
+    }
+
+    .list-item-footer {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
+  }
+</style>

@@ -1,0 +1,637 @@
+---
+/**
+ * Category-specific search suggestions component
+ * Provides contextual search suggestions based on media type and user history
+ */
+
+interface Props {
+  mediaType: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  inputId: string;
+  maxSuggestions?: number;
+  includeHistory?: boolean;
+  includePopular?: boolean;
+  includeTrending?: boolean;
+}
+
+const { 
+  mediaType,
+  inputId,
+  maxSuggestions = 8,
+  includeHistory = true,
+  includePopular = true,
+  includeTrending = true
+} = Astro.props;
+
+// Media-specific popular search terms
+const popularSearches = {
+  movie: [
+    'Marvel', 'DC Comics', 'Action', 'Comedy', 'Horror', 'Sci-Fi', 
+    'Drama', 'Thriller', 'Romance', 'Animation', 'Documentary'
+  ],
+  tv: [
+    'Netflix', 'HBO', 'Comedy', 'Drama', 'Crime', 'Sci-Fi',
+    'Reality TV', 'Documentary', 'Animation', 'Mystery', 'Fantasy'
+  ],
+  book: [
+    'Fiction', 'Non-Fiction', 'Mystery', 'Romance', 'Fantasy', 'Sci-Fi',
+    'Biography', 'Self-Help', 'History', 'Young Adult', 'Classic'
+  ],
+  anime: [
+    'Shounen', 'Shoujo', 'Seinen', 'Action', 'Romance', 'Comedy',
+    'Drama', 'Fantasy', 'Slice of Life', 'Mecha', 'Sports'
+  ],
+  manga: [
+    'Shounen', 'Shoujo', 'Seinen', 'Action', 'Romance', 'Comedy',
+    'Drama', 'Fantasy', 'Horror', 'Mystery', 'Historical'
+  ]
+};
+
+const mediaTypeLabels = {
+  movie: 'Movies',
+  tv: 'TV Shows', 
+  book: 'Books',
+  anime: 'Anime',
+  manga: 'Manga'
+};
+---
+
+<div class="category-search-suggestions" data-input-id={inputId} data-media-type={mediaType}>
+  <div 
+    id={`${inputId}-suggestions`}
+    class="suggestions-dropdown absolute top-full left-0 right-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg mt-1 hidden"
+  >
+    <!-- Loading State -->
+    <div class="suggestions-loading hidden">
+      <div class="flex items-center justify-center py-4">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+        <span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading suggestions...</span>
+      </div>
+    </div>
+
+    <!-- Suggestions List -->
+    <div class="suggestions-list">
+      <!-- Dynamic content will be inserted here -->
+    </div>
+
+    <!-- Empty State -->
+    <div class="suggestions-empty hidden">
+      <div class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+        No suggestions available
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="suggestions-footer border-t border-gray-200 dark:border-gray-600 px-4 py-2">
+      <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span>Press Enter to search</span>
+        <span>↑↓ to navigate</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface Suggestion {
+    id: string;
+    text: string;
+    type: 'history' | 'popular' | 'trending' | 'query';
+    category?: string;
+    count?: number;
+    icon?: string;
+  }
+
+  class CategorySearchSuggestions {
+    private container: HTMLElement;
+    private inputElement: HTMLInputElement;
+    private suggestionsDropdown: HTMLElement;
+    private suggestionsList: HTMLElement;
+    private mediaType: string;
+    private inputId: string;
+    private maxSuggestions: number;
+    private includeHistory: boolean;
+    private includePopular: boolean;
+    private includeTrending: boolean;
+    private currentSuggestions: Suggestion[] = [];
+    private selectedIndex: number = -1;
+    private isVisible: boolean = false;
+    private debounceTimer: number | null = null;
+    private abortController: AbortController | null = null;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.inputId = container.dataset.inputId || '';
+      this.mediaType = container.dataset.mediaType || '';
+      this.maxSuggestions = parseInt(container.dataset.maxSuggestions || '8');
+      this.includeHistory = container.dataset.includeHistory !== 'false';
+      this.includePopular = container.dataset.includePopular !== 'false';
+      this.includeTrending = container.dataset.includeTrending !== 'false';
+      
+      this.inputElement = document.getElementById(this.inputId) as HTMLInputElement;
+      this.suggestionsDropdown = container.querySelector('.suggestions-dropdown') as HTMLElement;
+      this.suggestionsList = container.querySelector('.suggestions-list') as HTMLElement;
+      
+      if (!this.inputElement || !this.suggestionsDropdown || !this.suggestionsList) {
+        console.warn('CategorySearchSuggestions: Required elements not found');
+        return;
+      }
+      
+      this.init();
+    }
+
+    private init() {
+      // Input events
+      this.inputElement.addEventListener('input', this.handleInput.bind(this));
+      this.inputElement.addEventListener('focus', this.handleFocus.bind(this));
+      this.inputElement.addEventListener('blur', this.handleBlur.bind(this));
+      this.inputElement.addEventListener('keydown', this.handleKeyDown.bind(this));
+      
+      // Click outside to close
+      document.addEventListener('click', this.handleDocumentClick.bind(this));
+      
+      // Load initial popular suggestions
+      this.loadPopularSuggestions();
+    }
+
+    private handleInput(e: Event) {
+      const query = (e.target as HTMLInputElement).value.trim();
+      
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      this.debounceTimer = window.setTimeout(() => {
+        if (query.length >= 2) {
+          this.loadQuerySuggestions(query);
+        } else if (query.length === 0) {
+          this.loadPopularSuggestions();
+        } else {
+          this.hideSuggestions();
+        }
+      }, 200);
+    }
+
+    private handleFocus() {
+      const query = this.inputElement.value.trim();
+      if (query.length >= 2) {
+        this.loadQuerySuggestions(query);
+      } else {
+        this.loadPopularSuggestions();
+      }
+    }
+
+    private handleBlur(e: FocusEvent) {
+      // Delay hiding to allow clicking on suggestions
+      setTimeout(() => {
+        if (!this.container.contains(document.activeElement)) {
+          this.hideSuggestions();
+        }
+      }, 150);
+    }
+
+    private handleKeyDown(e: KeyboardEvent) {
+      if (!this.isVisible) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          this.selectNext();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          this.selectPrevious();
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (this.selectedIndex >= 0) {
+            this.applySuggestion(this.currentSuggestions[this.selectedIndex]);
+          }
+          break;
+        case 'Escape':
+          this.hideSuggestions();
+          break;
+      }
+    }
+
+    private handleDocumentClick(e: Event) {
+      if (!this.container.contains(e.target as Node)) {
+        this.hideSuggestions();
+      }
+    }
+
+    private async loadPopularSuggestions() {
+      const suggestions: Suggestion[] = [];
+      
+      // Add search history if enabled
+      if (this.includeHistory) {
+        try {
+          const historyResponse = await fetch(`/api/search/history?mediaType=${this.mediaType}&limit=3`);
+          if (historyResponse.ok) {
+            const historyData = await historyResponse.json();
+            if (historyData.success) {
+              historyData.data.forEach((item: any, index: number) => {
+                suggestions.push({
+                  id: `history-${index}`,
+                  text: item.query,
+                  type: 'history',
+                  icon: '🕒'
+                });
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to load search history:', error);
+        }
+      }
+
+      // Add popular searches
+      if (this.includePopular) {
+        const popularSearches = this.getPopularSearches();
+        popularSearches.slice(0, this.maxSuggestions - suggestions.length).forEach((search, index) => {
+          suggestions.push({
+            id: `popular-${index}`,
+            text: search,
+            type: 'popular',
+            icon: '🔥'
+          });
+        });
+      }
+
+      this.currentSuggestions = suggestions;
+      this.renderSuggestions();
+      this.showSuggestions();
+    }
+
+    private async loadQuerySuggestions(query: string) {
+      // Cancel previous request
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+      this.abortController = new AbortController();
+
+      this.showLoading();
+
+      try {
+        const suggestions: Suggestion[] = [];
+
+        // Get API suggestions
+        const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}&mediaType=${this.mediaType}&limit=${this.maxSuggestions}`, {
+          signal: this.abortController.signal
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            data.data.forEach((suggestion: any, index: number) => {
+              suggestions.push({
+                id: `query-${index}`,
+                text: suggestion.text || suggestion.query,
+                type: 'query',
+                category: suggestion.category,
+                count: suggestion.count,
+                icon: this.getIconForSuggestion(suggestion)
+              });
+            });
+          }
+        }
+
+        // Add matching popular searches
+        const popularSearches = this.getPopularSearches();
+        const matchingPopular = popularSearches.filter(search => 
+          search.toLowerCase().includes(query.toLowerCase())
+        ).slice(0, Math.max(0, this.maxSuggestions - suggestions.length));
+
+        matchingPopular.forEach((search, index) => {
+          suggestions.push({
+            id: `popular-match-${index}`,
+            text: search,
+            type: 'popular',
+            icon: '🔥'
+          });
+        });
+
+        this.currentSuggestions = suggestions;
+        this.renderSuggestions();
+        this.showSuggestions();
+
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request was cancelled
+        }
+        console.error('Failed to load query suggestions:', error);
+        this.showEmpty();
+      } finally {
+        this.hideLoading();
+      }
+    }
+
+    private getPopularSearches(): string[] {
+      const popularSearches: Record<string, string[]> = {
+        movie: [
+          'Marvel', 'DC Comics', 'Action', 'Comedy', 'Horror', 'Sci-Fi', 
+          'Drama', 'Thriller', 'Romance', 'Animation', 'Documentary'
+        ],
+        tv: [
+          'Netflix', 'HBO', 'Comedy', 'Drama', 'Crime', 'Sci-Fi',
+          'Reality TV', 'Documentary', 'Animation', 'Mystery', 'Fantasy'
+        ],
+        book: [
+          'Fiction', 'Non-Fiction', 'Mystery', 'Romance', 'Fantasy', 'Sci-Fi',
+          'Biography', 'Self-Help', 'History', 'Young Adult', 'Classic'
+        ],
+        anime: [
+          'Shounen', 'Shoujo', 'Seinen', 'Action', 'Romance', 'Comedy',
+          'Drama', 'Fantasy', 'Slice of Life', 'Mecha', 'Sports'
+        ],
+        manga: [
+          'Shounen', 'Shoujo', 'Seinen', 'Action', 'Romance', 'Comedy',
+          'Drama', 'Fantasy', 'Horror', 'Mystery', 'Historical'
+        ]
+      };
+
+      return popularSearches[this.mediaType] || [];
+    }
+
+    private getIconForSuggestion(suggestion: any): string {
+      if (suggestion.type === 'trending') return '📈';
+      if (suggestion.category === 'genre') return '🎭';
+      if (suggestion.category === 'year') return '📅';
+      if (suggestion.category === 'person') return '👤';
+      return '🔍';
+    }
+
+    private renderSuggestions() {
+      if (this.currentSuggestions.length === 0) {
+        this.showEmpty();
+        return;
+      }
+
+      let html = '';
+      
+      // Group suggestions by type
+      const grouped = this.groupSuggestionsByType();
+      
+      Object.entries(grouped).forEach(([type, suggestions]) => {
+        if (suggestions.length === 0) return;
+        
+        // Add section header
+        const sectionTitle = this.getSectionTitle(type);
+        if (sectionTitle) {
+          html += `
+            <div class="suggestion-section-header px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide bg-gray-50 dark:bg-gray-700">
+              ${sectionTitle}
+            </div>
+          `;
+        }
+        
+        // Add suggestions
+        suggestions.forEach((suggestion, index) => {
+          const globalIndex = this.currentSuggestions.indexOf(suggestion);
+          html += `
+            <div 
+              class="suggestion-item px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 ${globalIndex === this.selectedIndex ? 'bg-blue-50 dark:bg-blue-900' : ''}"
+              data-index="${globalIndex}"
+              data-text="${suggestion.text}"
+            >
+              <span class="suggestion-icon text-sm">${suggestion.icon || '🔍'}</span>
+              <div class="flex-1">
+                <div class="suggestion-text text-sm text-gray-900 dark:text-gray-100">
+                  ${this.highlightQuery(suggestion.text)}
+                </div>
+                ${suggestion.category ? `
+                  <div class="suggestion-category text-xs text-gray-500 dark:text-gray-400">
+                    ${suggestion.category}
+                  </div>
+                ` : ''}
+              </div>
+              ${suggestion.count ? `
+                <div class="suggestion-count text-xs text-gray-400 dark:text-gray-500">
+                  ${suggestion.count}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        });
+      });
+
+      this.suggestionsList.innerHTML = html;
+      
+      // Add click handlers
+      this.suggestionsList.querySelectorAll('.suggestion-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+          const index = parseInt((e.currentTarget as HTMLElement).dataset.index || '-1');
+          if (index >= 0) {
+            this.applySuggestion(this.currentSuggestions[index]);
+          }
+        });
+      });
+    }
+
+    private groupSuggestionsByType(): Record<string, Suggestion[]> {
+      const grouped: Record<string, Suggestion[]> = {
+        history: [],
+        query: [],
+        popular: [],
+        trending: []
+      };
+
+      this.currentSuggestions.forEach(suggestion => {
+        grouped[suggestion.type].push(suggestion);
+      });
+
+      return grouped;
+    }
+
+    private getSectionTitle(type: string): string {
+      const titles: Record<string, string> = {
+        history: 'Recent Searches',
+        query: 'Suggestions',
+        popular: 'Popular Searches',
+        trending: 'Trending'
+      };
+      return titles[type] || '';
+    }
+
+    private highlightQuery(text: string): string {
+      const query = this.inputElement.value.trim();
+      if (!query) return text;
+
+      const regex = new RegExp(`(${query})`, 'gi');
+      return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
+    }
+
+    private selectNext() {
+      this.selectedIndex = Math.min(this.selectedIndex + 1, this.currentSuggestions.length - 1);
+      this.updateSelection();
+    }
+
+    private selectPrevious() {
+      this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+      this.updateSelection();
+    }
+
+    private updateSelection() {
+      const items = this.suggestionsList.querySelectorAll('.suggestion-item');
+      items.forEach((item, index) => {
+        item.classList.toggle('bg-blue-50', index === this.selectedIndex);
+        item.classList.toggle('dark:bg-blue-900', index === this.selectedIndex);
+      });
+
+      // Scroll selected item into view
+      if (this.selectedIndex >= 0) {
+        const selectedItem = items[this.selectedIndex] as HTMLElement;
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    private applySuggestion(suggestion: Suggestion) {
+      this.inputElement.value = suggestion.text;
+      this.hideSuggestions();
+      
+      // Trigger input event to start search
+      const event = new Event('input', { bubbles: true });
+      this.inputElement.dispatchEvent(event);
+      
+      // Save to history if it's not already a history item
+      if (suggestion.type !== 'history') {
+        this.saveToHistory(suggestion.text);
+      }
+    }
+
+    private async saveToHistory(query: string) {
+      try {
+        await fetch('/api/search/history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('auth_token') || '')
+          },
+          body: JSON.stringify({
+            query,
+            mediaType: this.mediaType
+          })
+        });
+      } catch (error) {
+        console.warn('Failed to save search to history:', error);
+      }
+    }
+
+    private showSuggestions() {
+      this.suggestionsDropdown.classList.remove('hidden');
+      this.isVisible = true;
+      this.selectedIndex = -1;
+    }
+
+    private hideSuggestions() {
+      this.suggestionsDropdown.classList.add('hidden');
+      this.isVisible = false;
+      this.selectedIndex = -1;
+    }
+
+    private showLoading() {
+      const loading = this.container.querySelector('.suggestions-loading');
+      const empty = this.container.querySelector('.suggestions-empty');
+      loading?.classList.remove('hidden');
+      empty?.classList.add('hidden');
+      this.suggestionsList.innerHTML = '';
+    }
+
+    private hideLoading() {
+      const loading = this.container.querySelector('.suggestions-loading');
+      loading?.classList.add('hidden');
+    }
+
+    private showEmpty() {
+      const empty = this.container.querySelector('.suggestions-empty');
+      empty?.classList.remove('hidden');
+      this.suggestionsList.innerHTML = '';
+      this.showSuggestions();
+    }
+
+    // Public methods
+    public refresh() {
+      const query = this.inputElement.value.trim();
+      if (query.length >= 2) {
+        this.loadQuerySuggestions(query);
+      } else {
+        this.loadPopularSuggestions();
+      }
+    }
+
+    public hide() {
+      this.hideSuggestions();
+    }
+
+    public destroy() {
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+    }
+  }
+
+  // Initialize all category search suggestion components
+  function initializeCategorySearchSuggestions() {
+    const containers = document.querySelectorAll('.category-search-suggestions');
+    containers.forEach(container => {
+      new CategorySearchSuggestions(container as HTMLElement);
+    });
+  }
+
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeCategorySearchSuggestions);
+  } else {
+    initializeCategorySearchSuggestions();
+  }
+
+  // Export for manual initialization
+  (window as any).CategorySearchSuggestions = CategorySearchSuggestions;
+  (window as any).initializeCategorySearchSuggestions = initializeCategorySearchSuggestions;
+</script>
+
+<style>
+  .suggestions-dropdown {
+    max-height: 400px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+  }
+
+  .suggestions-dropdown::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .suggestions-dropdown::-webkit-scrollbar-track {
+    background: #f7fafc;
+  }
+
+  .suggestions-dropdown::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+  }
+
+  .suggestions-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+  }
+
+  .suggestion-item:last-child {
+    border-bottom: none;
+  }
+
+  mark {
+    padding: 0;
+    border-radius: 2px;
+  }
+
+  .suggestion-section-header:first-child {
+    border-top: none;
+  }
+
+  @media (max-width: 640px) {
+    .suggestions-dropdown {
+      max-height: 300px;
+    }
+  }
+</style>

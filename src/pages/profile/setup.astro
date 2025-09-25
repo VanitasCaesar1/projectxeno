@@ -1,0 +1,253 @@
+---
+import Layout from '../../layout/layout.astro';
+import { supabase } from '../../lib/supabase';
+
+// Check if user is authenticated
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/login");
+}
+
+// Set up Supabase session
+supabase.auth.setSession({
+  access_token: accessToken.value,
+  refresh_token: refreshToken.value,
+});
+
+const { data: { user } } = await supabase.auth.getUser();
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+// Check if profile already exists
+const { data: existingProfile } = await supabase
+  .from('user_profiles')
+  .select('*')
+  .eq('id', user.id)
+  .single();
+
+// If profile exists, redirect to profile page
+if (existingProfile) {
+  return Astro.redirect("/profile");
+}
+
+const { error, message } = Astro.url.searchParams.get('error') ? 
+  { error: Astro.url.searchParams.get('error'), message: Astro.url.searchParams.get('message') } : 
+  { error: null, message: null };
+---
+
+<Layout title="Complete Your Profile">
+  <main class="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
+    <div class="max-w-md mx-auto">
+      <div class="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-8">
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Welcome!</h1>
+          <p class="text-gray-600 dark:text-gray-300 mt-2">Let's complete your profile to get started</p>
+        </div>
+
+        {error && (
+          <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div class="flex">
+              <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                </svg>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm text-red-800">{message || error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <form id="profileSetupForm" action="/api/auth/setup-profile" method="POST" class="space-y-6">
+          <div>
+            <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Username
+            </label>
+            <div class="mt-1">
+              <input 
+                id="username" 
+                name="username" 
+                type="text" 
+                required 
+                placeholder="Choose a unique username"
+                class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+              <div id="username-error" class="mt-1 text-sm text-red-600 hidden"></div>
+              <div id="username-success" class="mt-1 text-sm text-green-600 hidden"></div>
+            </div>
+          </div>
+
+          <div>
+            <label for="displayName" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Display Name
+            </label>
+            <div class="mt-1">
+              <input 
+                id="displayName" 
+                name="displayName" 
+                type="text" 
+                placeholder="How should others see your name?"
+                class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+            </div>
+          </div>
+
+          <div>
+            <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Bio (Optional)
+            </label>
+            <div class="mt-1">
+              <textarea 
+                id="bio" 
+                name="bio" 
+                rows="3" 
+                placeholder="Tell others about yourself..."
+                class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              ></textarea>
+            </div>
+          </div>
+
+          <div>
+            <label for="privacyLevel" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Privacy Level
+            </label>
+            <div class="mt-1">
+              <select 
+                id="privacyLevel" 
+                name="privacyLevel"
+                class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="public">Public - Anyone can see your profile</option>
+                <option value="friends">Friends Only - Only people you follow can see your profile</option>
+                <option value="private">Private - Only you can see your profile</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <button 
+              type="submit" 
+              id="submitBtn"
+              class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span id="submitText">Complete Profile</span>
+              <svg id="loadingSpinner" class="animate-spin -mr-1 ml-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('profileSetupForm') as HTMLFormElement;
+    const usernameInput = document.getElementById('username') as HTMLInputElement;
+    const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+    const submitText = document.getElementById('submitText') as HTMLSpanElement;
+    const loadingSpinner = document.getElementById('loadingSpinner') as HTMLElement;
+
+    let usernameCheckTimeout: NodeJS.Timeout;
+
+    // Username validation and uniqueness check
+    usernameInput.addEventListener('input', function() {
+      const username = this.value.trim();
+      const errorDiv = document.getElementById('username-error')!;
+      const successDiv = document.getElementById('username-success')!;
+
+      // Clear previous timeout
+      clearTimeout(usernameCheckTimeout);
+
+      // Reset states
+      errorDiv.classList.add('hidden');
+      successDiv.classList.add('hidden');
+
+      if (username.length < 3) {
+        if (username.length > 0) {
+          showError('username', 'Username must be at least 3 characters long');
+        }
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showError('username', 'Username can only contain letters, numbers, and underscores');
+        return;
+      }
+
+      // Check username availability after 500ms delay
+      usernameCheckTimeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+          const data = await response.json();
+          
+          if (data.available) {
+            showSuccess('username', 'Username is available');
+          } else {
+            showError('username', 'Username is already taken');
+          }
+        } catch (error) {
+          console.error('Error checking username:', error);
+        }
+      }, 500);
+    });
+
+    // Form submission
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      const username = usernameInput.value.trim();
+
+      if (username.length < 3) {
+        showError('username', 'Username must be at least 3 characters long');
+        return;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        showError('username', 'Username can only contain letters, numbers, and underscores');
+        return;
+      }
+
+      // Show loading state
+      submitBtn.disabled = true;
+      submitText.textContent = 'Setting up profile...';
+      loadingSpinner.classList.remove('hidden');
+
+      // Submit form
+      form.submit();
+    });
+
+    function showError(fieldName: string, message: string) {
+      const errorDiv = document.getElementById(`${fieldName}-error`)!;
+      errorDiv.textContent = message;
+      errorDiv.classList.remove('hidden');
+      hideSuccess(fieldName);
+    }
+
+    function showSuccess(fieldName: string, message: string) {
+      const successDiv = document.getElementById(`${fieldName}-success`)!;
+      successDiv.textContent = message;
+      successDiv.classList.remove('hidden');
+      hideError(fieldName);
+    }
+
+    function hideError(fieldName: string) {
+      const errorDiv = document.getElementById(`${fieldName}-error`)!;
+      errorDiv.classList.add('hidden');
+    }
+
+    function hideSuccess(fieldName: string) {
+      const successDiv = document.getElementById(`${fieldName}-success`)!;
+      successDiv.classList.add('hidden');
+    }
+  });
+</script>
+</Layout>

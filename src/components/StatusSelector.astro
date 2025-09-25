@@ -1,0 +1,714 @@
+---
+import type { MediaType, UserMediaStatus } from '../types/database';
+
+export interface Props {
+  mediaId: string;
+  mediaType: MediaType;
+  currentStatus: UserMediaStatus;
+  showLabel?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+  variant?: 'default' | 'compact' | 'inline';
+}
+
+const { 
+  mediaId, 
+  mediaType, 
+  currentStatus,
+  showLabel = true,
+  size = 'md',
+  variant = 'default'
+} = Astro.props;
+
+const statusOptions = [
+  { value: 'plan_to_watch', label: 'Plan to Watch', icon: '📋', color: '#6b7280' },
+  { value: 'watching', label: 'Currently Watching', icon: '▶️', color: '#3b82f6' },
+  { value: 'completed', label: 'Completed', icon: '✅', color: '#22c55e' },
+  { value: 'on_hold', label: 'On Hold', icon: '⏸️', color: '#f59e0b' },
+  { value: 'dropped', label: 'Dropped', icon: '❌', color: '#ef4444' }
+];
+
+// Adjust labels based on media type
+const getStatusLabel = (status: string, mediaType: MediaType) => {
+  const baseOption = statusOptions.find(opt => opt.value === status);
+  if (!baseOption) return status;
+
+  let label = baseOption.label;
+  
+  if (mediaType === 'book') {
+    label = label.replace('Watch', 'Read').replace('Watching', 'Reading');
+  } else if (mediaType === 'anime' || mediaType === 'tv') {
+    // Keep as is for anime and TV
+  } else if (mediaType === 'movie') {
+    label = label.replace('Watching', 'Watching').replace('Plan to Watch', 'Plan to Watch');
+  }
+  
+  return label;
+};
+
+const adjustedStatusOptions = statusOptions.map(option => ({
+  ...option,
+  label: getStatusLabel(option.value, mediaType)
+}));
+
+const currentOption = adjustedStatusOptions.find(opt => opt.value === currentStatus);
+
+const sizeClasses = {
+  sm: 'text-xs px-2 py-1',
+  md: 'text-sm px-3 py-2',
+  lg: 'text-base px-4 py-3'
+};
+
+const variantClasses = {
+  default: 'min-w-[160px]',
+  compact: 'min-w-[120px]',
+  inline: 'min-w-[100px]'
+};
+---
+
+<div 
+  class={`status-selector ${variant} ${size}`}
+  data-media-id={mediaId}
+  data-media-type={mediaType}
+  data-current-status={currentStatus}
+>
+  <div class="selector-container">
+    <button 
+      class="status-button"
+      style={`border-color: ${currentOption?.color}; color: ${currentOption?.color};`}
+      aria-label={`Change status from ${currentOption?.label}`}
+    >
+      <span class="status-icon">{currentOption?.icon}</span>
+      {showLabel && <span class="status-text">{currentOption?.label}</span>}
+      <span class="dropdown-arrow">▼</span>
+    </button>
+
+    <div class="status-dropdown hidden">
+      <div class="dropdown-header">
+        <span class="dropdown-title">Change Status</span>
+      </div>
+      
+      <div class="status-options">
+        {adjustedStatusOptions.map(option => (
+          <button 
+            class="status-option"
+            data-status={option.value}
+            data-is-current={option.value === currentStatus}
+            style={`--option-color: ${option.color};`}
+          >
+            <span class="option-icon">{option.icon}</span>
+            <span class="option-text">{option.label}</span>
+            {option.value === currentStatus && (
+              <span class="current-indicator">✓</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div class="dropdown-footer">
+        <button class="remove-option" data-status="remove">
+          <span class="option-icon">🗑️</span>
+          <span class="option-text">Remove from List</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div class="loading-overlay hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Error state -->
+  <div class="error-message hidden">
+    <span class="error-text"></span>
+    <button class="error-close">×</button>
+  </div>
+</div>
+
+<style>
+  .status-selector {
+    position: relative;
+    display: inline-block;
+  }
+
+  .selector-container {
+    position: relative;
+  }
+
+  .status-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: var(--button-padding, 0.5rem 0.75rem);
+    background: white;
+    border: 2px solid;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    min-width: var(--button-min-width, 160px);
+    justify-content: space-between;
+  }
+
+  .status-selector.sm .status-button {
+    --button-padding: 0.25rem 0.5rem;
+    --button-min-width: 120px;
+    font-size: 0.75rem;
+  }
+
+  .status-selector.lg .status-button {
+    --button-padding: 0.75rem 1rem;
+    --button-min-width: 200px;
+    font-size: 1rem;
+  }
+
+  .status-selector.compact .status-button {
+    --button-min-width: 120px;
+  }
+
+  .status-selector.inline .status-button {
+    --button-min-width: 100px;
+  }
+
+  .status-button:hover {
+    background: rgba(0, 0, 0, 0.02);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .status-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .dropdown-arrow {
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+    opacity: 0.7;
+  }
+
+  .selector-container.open .dropdown-arrow {
+    transform: rotate(180deg);
+  }
+
+  .status-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    z-index: 50;
+    margin-top: 0.5rem;
+    overflow: hidden;
+    min-width: 200px;
+  }
+
+  .status-dropdown.hidden {
+    display: none;
+  }
+
+  .dropdown-header {
+    padding: 0.75rem 1rem 0.5rem;
+    border-bottom: 1px solid #f3f4f6;
+    background: #f9fafb;
+  }
+
+  .dropdown-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .status-options {
+    padding: 0.5rem 0;
+  }
+
+  .status-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    text-align: left;
+    position: relative;
+  }
+
+  .status-option:hover {
+    background: #f9fafb;
+    color: var(--option-color);
+  }
+
+  .status-option[data-is-current="true"] {
+    background: rgba(59, 130, 246, 0.05);
+    color: var(--option-color);
+    font-weight: 500;
+  }
+
+  .status-option[data-is-current="true"]::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--option-color);
+  }
+
+  .current-indicator {
+    margin-left: auto;
+    color: var(--option-color);
+    font-weight: bold;
+    font-size: 0.875rem;
+  }
+
+  .dropdown-footer {
+    border-top: 1px solid #f3f4f6;
+    padding: 0.5rem 0;
+  }
+
+  .remove-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #dc2626;
+    transition: all 0.2s ease;
+    text-align: left;
+  }
+
+  .remove-option:hover {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+  }
+
+  .spinner {
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .error-message {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #dc2626;
+    z-index: 60;
+  }
+
+  .error-close {
+    background: none;
+    border: none;
+    color: #dc2626;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    margin-left: 0.5rem;
+  }
+
+  .error-close:hover {
+    color: #b91c1c;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  /* Dark mode support */
+  @media (prefers-color-scheme: dark) {
+    .status-button {
+      background: #1f2937;
+      color: #f9fafb;
+    }
+
+    .status-button:hover {
+      background: #374151;
+    }
+
+    .status-dropdown {
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+    .dropdown-header {
+      background: #111827;
+      border-color: #374151;
+    }
+
+    .dropdown-title {
+      color: #9ca3af;
+    }
+
+    .status-option {
+      background: #1f2937;
+      color: #f9fafb;
+    }
+
+    .status-option:hover {
+      background: #374151;
+    }
+
+    .status-option[data-is-current="true"] {
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .remove-option {
+      background: #1f2937;
+      color: #f87171;
+    }
+
+    .remove-option:hover {
+      background: #7f1d1d;
+      color: #fca5a5;
+    }
+
+    .dropdown-footer {
+      border-color: #374151;
+    }
+
+    .loading-overlay {
+      background: rgba(31, 41, 55, 0.9);
+    }
+
+    .error-message {
+      background: #7f1d1d;
+      border-color: #991b1b;
+      color: #fca5a5;
+    }
+  }
+</style>
+
+<script>
+  class StatusSelector {
+    private container: HTMLElement;
+    private mediaId: string;
+    private mediaType: string;
+    private currentStatus: string;
+    private isLoading: boolean = false;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.mediaId = container.dataset.mediaId!;
+      this.mediaType = container.dataset.mediaType!;
+      this.currentStatus = container.dataset.currentStatus!;
+      
+      this.init();
+    }
+
+    private init() {
+      const statusButton = this.container.querySelector('.status-button');
+      const statusOptions = this.container.querySelectorAll('.status-option');
+      const removeOption = this.container.querySelector('.remove-option');
+      const errorClose = this.container.querySelector('.error-close');
+
+      if (statusButton) {
+        statusButton.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggleDropdown();
+        });
+      }
+
+      statusOptions.forEach(option => {
+        option.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const status = (option as HTMLElement).dataset.status!;
+          this.handleStatusChange(status);
+        });
+      });
+
+      if (removeOption) {
+        removeOption.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.handleRemove();
+        });
+      }
+
+      if (errorClose) {
+        errorClose.addEventListener('click', () => {
+          this.hideError();
+        });
+      }
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!this.container.contains(e.target as Node)) {
+          this.closeDropdown();
+        }
+      });
+
+      // Close dropdown on escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          this.closeDropdown();
+        }
+      });
+    }
+
+    private toggleDropdown() {
+      const selectorContainer = this.container.querySelector('.selector-container');
+      const dropdown = this.container.querySelector('.status-dropdown');
+      
+      if (selectorContainer && dropdown) {
+        const isOpen = selectorContainer.classList.contains('open');
+        
+        if (isOpen) {
+          this.closeDropdown();
+        } else {
+          // Close any other open dropdowns
+          document.querySelectorAll('.selector-container.open').forEach(container => {
+            container.classList.remove('open');
+          });
+          document.querySelectorAll('.status-dropdown').forEach(dropdown => {
+            dropdown.classList.add('hidden');
+          });
+
+          selectorContainer.classList.add('open');
+          dropdown.classList.remove('hidden');
+        }
+      }
+    }
+
+    private closeDropdown() {
+      const selectorContainer = this.container.querySelector('.selector-container');
+      const dropdown = this.container.querySelector('.status-dropdown');
+      
+      if (selectorContainer && dropdown) {
+        selectorContainer.classList.remove('open');
+        dropdown.classList.add('hidden');
+      }
+    }
+
+    private async handleStatusChange(newStatus: string) {
+      if (this.isLoading || newStatus === this.currentStatus) return;
+
+      this.closeDropdown();
+      await this.updateStatus(newStatus);
+    }
+
+    private async handleRemove() {
+      if (this.isLoading) return;
+
+      this.closeDropdown();
+      
+      if (confirm('Are you sure you want to remove this item from your list?')) {
+        await this.removeFromList();
+      }
+    }
+
+    private async updateStatus(newStatus: string) {
+      this.showLoading();
+
+      try {
+        // Get authentication header
+        const authHeader = await (window as any).getAuthHeader?.() || {};
+        
+        const response = await fetch('/api/user/media', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+          },
+          body: JSON.stringify({
+            mediaId: this.mediaId,
+            status: newStatus
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error?.message || 'Failed to update status');
+        }
+
+        // Update the component state
+        this.currentStatus = newStatus;
+        this.container.dataset.currentStatus = newStatus;
+        
+        // Trigger a custom event for other components to listen to
+        this.container.dispatchEvent(new CustomEvent('statusChanged', {
+          detail: { mediaId: this.mediaId, newStatus, oldStatus: this.currentStatus }
+        }));
+
+        // Update UI
+        this.updateUI(newStatus);
+
+      } catch (error) {
+        console.error('Error updating status:', error);
+        this.showError(error instanceof Error ? error.message : 'Failed to update status');
+      } finally {
+        this.hideLoading();
+      }
+    }
+
+    private async removeFromList() {
+      this.showLoading();
+
+      try {
+        // Get authentication header
+        const authHeader = await (window as any).getAuthHeader?.() || {};
+        
+        const response = await fetch('/api/user/media', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+          },
+          body: JSON.stringify({
+            mediaId: this.mediaId
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error?.message || 'Failed to remove from list');
+        }
+
+        // Trigger a custom event
+        this.container.dispatchEvent(new CustomEvent('itemRemoved', {
+          detail: { mediaId: this.mediaId }
+        }));
+
+        // Hide or remove the component
+        this.container.style.display = 'none';
+
+      } catch (error) {
+        console.error('Error removing from list:', error);
+        this.showError(error instanceof Error ? error.message : 'Failed to remove from list');
+      } finally {
+        this.hideLoading();
+      }
+    }
+
+    private updateUI(newStatus: string) {
+      // Update button appearance
+      const statusButton = this.container.querySelector('.status-button') as HTMLElement;
+      const statusIcon = this.container.querySelector('.status-icon') as HTMLElement;
+      const statusText = this.container.querySelector('.status-text') as HTMLElement;
+      
+      // Find the new status option
+      const statusOptions = [
+        { value: 'plan_to_watch', label: 'Plan to Watch', icon: '📋', color: '#6b7280' },
+        { value: 'watching', label: 'Currently Watching', icon: '▶️', color: '#3b82f6' },
+        { value: 'completed', label: 'Completed', icon: '✅', color: '#22c55e' },
+        { value: 'on_hold', label: 'On Hold', icon: '⏸️', color: '#f59e0b' },
+        { value: 'dropped', label: 'Dropped', icon: '❌', color: '#ef4444' }
+      ];
+
+      const newOption = statusOptions.find(opt => opt.value === newStatus);
+      
+      if (newOption && statusButton && statusIcon && statusText) {
+        statusIcon.textContent = newOption.icon;
+        statusText.textContent = newOption.label;
+        statusButton.style.borderColor = newOption.color;
+        statusButton.style.color = newOption.color;
+      }
+
+      // Update dropdown options
+      const dropdownOptions = this.container.querySelectorAll('.status-option');
+      dropdownOptions.forEach(option => {
+        const optionElement = option as HTMLElement;
+        const isCurrentStatus = optionElement.dataset.status === newStatus;
+        optionElement.dataset.isCurrent = isCurrentStatus.toString();
+        
+        const indicator = optionElement.querySelector('.current-indicator');
+        if (isCurrentStatus && !indicator) {
+          const indicatorSpan = document.createElement('span');
+          indicatorSpan.className = 'current-indicator';
+          indicatorSpan.textContent = '✓';
+          optionElement.appendChild(indicatorSpan);
+        } else if (!isCurrentStatus && indicator) {
+          indicator.remove();
+        }
+      });
+    }
+
+    private showLoading() {
+      this.isLoading = true;
+      this.container.querySelector('.loading-overlay')?.classList.remove('hidden');
+      this.hideError();
+    }
+
+    private hideLoading() {
+      this.isLoading = false;
+      this.container.querySelector('.loading-overlay')?.classList.add('hidden');
+    }
+
+    private showError(message: string) {
+      const errorElement = this.container.querySelector('.error-message');
+      const errorText = this.container.querySelector('.error-text');
+      
+      if (errorElement && errorText) {
+        errorText.textContent = message;
+        errorElement.classList.remove('hidden');
+      }
+    }
+
+    private hideError() {
+      this.container.querySelector('.error-message')?.classList.add('hidden');
+    }
+  }
+
+  // Initialize all StatusSelector components on the page
+  document.addEventListener('DOMContentLoaded', () => {
+    const containers = document.querySelectorAll('.status-selector');
+    containers.forEach(container => {
+      new StatusSelector(container as HTMLElement);
+    });
+  });
+
+  // Re-initialize when new components are added dynamically
+  document.addEventListener('statusSelectorAdded', (e) => {
+    const container = (e as CustomEvent).detail.container;
+    if (container) {
+      new StatusSelector(container);
+    }
+  });
+</script>

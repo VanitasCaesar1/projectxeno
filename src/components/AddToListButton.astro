@@ -1,0 +1,708 @@
+---
+import type { MediaType, UserMediaStatus } from '../types/database';
+
+export interface Props {
+  mediaId: string;
+  mediaType: MediaType;
+  currentStatus?: UserMediaStatus | null;
+  externalId: string;
+  title: string;
+  description?: string;
+  posterUrl?: string;
+  releaseDate?: string;
+  genres?: string[];
+  metadata?: Record<string, any>;
+}
+
+const { 
+  mediaId, 
+  mediaType, 
+  currentStatus, 
+  externalId,
+  title,
+  description,
+  posterUrl,
+  releaseDate,
+  genres = [],
+  metadata = {}
+} = Astro.props;
+
+const statusOptions = [
+  { value: 'plan_to_watch', label: 'Plan to Watch', icon: '📋' },
+  { value: 'watching', label: 'Currently Watching', icon: '▶️' },
+  { value: 'completed', label: 'Completed', icon: '✅' },
+  { value: 'on_hold', label: 'On Hold', icon: '⏸️' },
+  { value: 'dropped', label: 'Dropped', icon: '❌' }
+];
+
+// Adjust labels based on media type
+const getStatusLabel = (status: string, mediaType: MediaType) => {
+  const baseOption = statusOptions.find(opt => opt.value === status);
+  if (!baseOption) return status;
+
+  let label = baseOption.label;
+  
+  if (mediaType === 'book') {
+    label = label.replace('Watch', 'Read').replace('Watching', 'Reading');
+  } else if (mediaType === 'anime' || mediaType === 'tv') {
+    // Keep as is for anime and TV
+  } else if (mediaType === 'movie') {
+    // For movies, adjust the labels to be more appropriate
+    if (status === 'watching') {
+      label = 'Currently Watching';
+    } else if (status === 'plan_to_watch') {
+      label = 'Plan to Watch';
+    }
+  }
+  
+  return label;
+};
+
+const adjustedStatusOptions = statusOptions.map(option => ({
+  ...option,
+  label: getStatusLabel(option.value, mediaType)
+}));
+---
+
+<div class="add-to-list-container" data-media-id={mediaId} data-media-type={mediaType}>
+  {currentStatus ? (
+    <div class="current-status-container">
+      <button 
+        class="current-status-btn"
+        data-current-status={currentStatus}
+      >
+        <span class="status-icon">
+          {adjustedStatusOptions.find(opt => opt.value === currentStatus)?.icon || '📋'}
+        </span>
+        <span class="status-text">
+          {getStatusLabel(currentStatus, mediaType)}
+        </span>
+        <span class="dropdown-arrow">▼</span>
+      </button>
+      
+      <div class="status-dropdown hidden">
+        {adjustedStatusOptions.map(option => (
+          <button 
+            class="status-option"
+            data-status={option.value}
+            data-is-current={option.value === currentStatus}
+          >
+            <span class="option-icon">{option.icon}</span>
+            <span class="option-text">{option.label}</span>
+            {option.value === currentStatus && <span class="current-indicator">✓</span>}
+          </button>
+        ))}
+        <button class="status-option remove-option" data-status="remove">
+          <span class="option-icon">🗑️</span>
+          <span class="option-text">Remove from List</span>
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div class="add-new-container">
+      <button class="add-to-list-btn">
+        <span class="add-icon">+</span>
+        <span class="add-text">Add to List</span>
+      </button>
+      
+      <div class="status-dropdown hidden">
+        {adjustedStatusOptions.map(option => (
+          <button 
+            class="status-option"
+            data-status={option.value}
+          >
+            <span class="option-icon">{option.icon}</span>
+            <span class="option-text">{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Hidden form data for API calls -->
+  <div class="hidden-media-data" style="display: none;">
+    <input type="hidden" name="externalId" value={externalId} />
+    <input type="hidden" name="title" value={title} />
+    <input type="hidden" name="description" value={description || ''} />
+    <input type="hidden" name="posterUrl" value={posterUrl || ''} />
+    <input type="hidden" name="releaseDate" value={releaseDate || ''} />
+    <input type="hidden" name="genres" value={JSON.stringify(genres)} />
+    <input type="hidden" name="metadata" value={JSON.stringify(metadata)} />
+  </div>
+
+  <!-- Loading and error states -->
+  <div class="loading-state hidden">
+    <div class="spinner"></div>
+    <span>Updating...</span>
+  </div>
+
+  <div class="error-state hidden">
+    <span class="error-message"></span>
+    <button class="retry-btn">Retry</button>
+  </div>
+</div>
+
+<style>
+  .add-to-list-container {
+    position: relative;
+    display: inline-block;
+  }
+
+  .current-status-btn,
+  .add-to-list-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    min-width: 140px;
+    justify-content: center;
+  }
+
+  .current-status-btn:hover,
+  .add-to-list-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  .current-status-btn {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  }
+
+  .dropdown-arrow {
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+  }
+
+  .current-status-container.open .dropdown-arrow {
+    transform: rotate(180deg);
+  }
+
+  .status-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    margin-top: 0.25rem;
+    overflow: hidden;
+  }
+
+  .status-dropdown.hidden {
+    display: none;
+  }
+
+  .status-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.2s ease;
+    text-align: left;
+  }
+
+  .status-option:hover {
+    background: #f3f4f6;
+  }
+
+  .status-option[data-is-current="true"] {
+    background: #f0f9ff;
+    color: #0369a1;
+  }
+
+  .remove-option {
+    border-top: 1px solid #e5e7eb;
+    color: #dc2626;
+  }
+
+  .remove-option:hover {
+    background: #fef2f2;
+  }
+
+  .current-indicator {
+    margin-left: auto;
+    color: #22c55e;
+    font-weight: bold;
+  }
+
+  .loading-state {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f3f4f6;
+    border-radius: 0.5rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+
+  .spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e5e7eb;
+    border-top: 2px solid #6b7280;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .error-state {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    color: #dc2626;
+    font-size: 0.875rem;
+  }
+
+  .retry-btn {
+    padding: 0.25rem 0.5rem;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+
+  .retry-btn:hover {
+    background: #b91c1c;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  /* Dark mode support */
+  @media (prefers-color-scheme: dark) {
+    .status-dropdown {
+      background: #1f2937;
+      border-color: #374151;
+    }
+
+    .status-option {
+      background: #1f2937;
+      color: #f9fafb;
+    }
+
+    .status-option:hover {
+      background: #374151;
+    }
+
+    .status-option[data-is-current="true"] {
+      background: #1e3a8a;
+      color: #93c5fd;
+    }
+
+    .remove-option {
+      border-color: #374151;
+    }
+
+    .remove-option:hover {
+      background: #7f1d1d;
+    }
+  }
+</style>
+
+<script>
+  class AddToListButton {
+    private container: HTMLElement;
+    private mediaId: string;
+    private mediaType: string;
+    private currentStatus: string | null;
+    private isLoading: boolean = false;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.mediaId = container.dataset.mediaId!;
+      this.mediaType = container.dataset.mediaType!;
+      this.currentStatus = (container.querySelector('.current-status-btn') as HTMLElement)?.dataset.currentStatus || null;
+      
+      this.init();
+    }
+
+    private init() {
+      // Attach initial event listeners
+      this.attachEventListeners();
+
+      // Handle retry button
+      const retryBtn = this.container.querySelector('.retry-btn');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          this.hideError();
+        });
+      }
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!this.container.contains(e.target as Node)) {
+          this.closeDropdown();
+        }
+      });
+    }
+
+    private toggleDropdown() {
+      const container = this.container.querySelector('.current-status-container, .add-new-container');
+      const dropdown = this.container.querySelector('.status-dropdown');
+      
+      if (container && dropdown) {
+        const isOpen = container.classList.contains('open');
+        
+        if (isOpen) {
+          this.closeDropdown();
+        } else {
+          container.classList.add('open');
+          dropdown.classList.remove('hidden');
+        }
+      }
+    }
+
+    private closeDropdown() {
+      const container = this.container.querySelector('.current-status-container, .add-new-container');
+      const dropdown = this.container.querySelector('.status-dropdown');
+      
+      if (container && dropdown) {
+        container.classList.remove('open');
+        dropdown.classList.add('hidden');
+      }
+    }
+
+    private async handleStatusChange(status: string) {
+      if (this.isLoading) return;
+
+      this.closeDropdown();
+      
+      if (status === 'remove') {
+        await this.removeFromList();
+      } else {
+        await this.updateStatus(status);
+      }
+    }
+
+    private async updateStatus(newStatus: string) {
+      this.showLoading();
+
+      try {
+        const mediaData = this.getMediaData();
+        
+        // Get authentication header
+        const authHeader = await (window as any).getAuthHeader?.() || {};
+        
+        const response = await fetch('/api/user/media', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+          },
+          body: JSON.stringify({
+            mediaId: this.mediaId,
+            mediaType: this.mediaType,
+            status: newStatus,
+            ...mediaData
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error?.message || 'Failed to update status');
+        }
+
+        // Update UI to reflect new status
+        this.updateUI(newStatus);
+        this.currentStatus = newStatus;
+
+      } catch (error) {
+        console.error('Error updating status:', error);
+        this.showError(error instanceof Error ? error.message : 'Failed to update status');
+      } finally {
+        this.hideLoading();
+      }
+    }
+
+    private async removeFromList() {
+      this.showLoading();
+
+      try {
+        // Get authentication header
+        const authHeader = await (window as any).getAuthHeader?.() || {};
+        
+        const response = await fetch('/api/user/media', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authHeader
+          },
+          body: JSON.stringify({
+            mediaId: this.mediaId,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error?.message || 'Failed to remove from list');
+        }
+
+        // Update UI to show "Add to List" state
+        this.updateUI(null);
+        this.currentStatus = null;
+
+      } catch (error) {
+        console.error('Error removing from list:', error);
+        this.showError(error instanceof Error ? error.message : 'Failed to remove from list');
+      } finally {
+        this.hideLoading();
+      }
+    }
+
+    private getMediaData() {
+      const hiddenData = this.container.querySelector('.hidden-media-data');
+      if (!hiddenData) return {};
+
+      const externalId = (hiddenData.querySelector('[name="externalId"]') as HTMLInputElement)?.value;
+      const title = (hiddenData.querySelector('[name="title"]') as HTMLInputElement)?.value;
+      const description = (hiddenData.querySelector('[name="description"]') as HTMLInputElement)?.value;
+      const posterUrl = (hiddenData.querySelector('[name="posterUrl"]') as HTMLInputElement)?.value;
+      const releaseDate = (hiddenData.querySelector('[name="releaseDate"]') as HTMLInputElement)?.value;
+      const genres = JSON.parse((hiddenData.querySelector('[name="genres"]') as HTMLInputElement)?.value || '[]');
+      const metadata = JSON.parse((hiddenData.querySelector('[name="metadata"]') as HTMLInputElement)?.value || '{}');
+
+      return {
+        externalId,
+        title,
+        description,
+        posterUrl,
+        releaseDate,
+        genres,
+        metadata
+      };
+    }
+
+    private updateUI(newStatus: string | null) {
+      // Update the UI without page reload
+      if (newStatus === null) {
+        // Show "Add to List" state
+        this.showAddToListState();
+      } else {
+        // Show current status state
+        this.showCurrentStatusState(newStatus);
+      }
+      this.currentStatus = newStatus;
+    }
+
+    private showAddToListState() {
+      // Remove current status container if it exists
+      const currentStatusContainer = this.container.querySelector('.current-status-container');
+      if (currentStatusContainer) {
+        currentStatusContainer.remove();
+      }
+
+      // Create add new container if it doesn't exist
+      let addNewContainer = this.container.querySelector('.add-new-container');
+      if (!addNewContainer) {
+        addNewContainer = document.createElement('div');
+        addNewContainer.className = 'add-new-container';
+        
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-to-list-btn';
+        addBtn.innerHTML = '<span class="add-icon">+</span><span class="add-text">Add to List</span>';
+        
+        const dropdown = this.createStatusDropdown();
+        
+        addNewContainer.appendChild(addBtn);
+        addNewContainer.appendChild(dropdown);
+        this.container.insertBefore(addNewContainer, this.container.querySelector('.hidden-media-data'));
+        
+        // Re-attach event listeners
+        this.attachEventListeners();
+      }
+    }
+
+    private showCurrentStatusState(status: string) {
+      // Remove add new container if it exists
+      const addNewContainer = this.container.querySelector('.add-new-container');
+      if (addNewContainer) {
+        addNewContainer.remove();
+      }
+
+      // Create or update current status container
+      let currentStatusContainer = this.container.querySelector('.current-status-container');
+      if (!currentStatusContainer) {
+        currentStatusContainer = document.createElement('div');
+        currentStatusContainer.className = 'current-status-container';
+        this.container.insertBefore(currentStatusContainer, this.container.querySelector('.hidden-media-data'));
+      }
+
+      const statusOption = this.getStatusOption(status);
+      const statusLabel = this.getStatusLabel(status, this.mediaType);
+      
+      currentStatusContainer.innerHTML = `
+        <button class="current-status-btn" data-current-status="${status}">
+          <span class="status-icon">${statusOption?.icon || '📋'}</span>
+          <span class="status-text">${statusLabel}</span>
+          <span class="dropdown-arrow">▼</span>
+        </button>
+        ${this.createStatusDropdown().outerHTML}
+      `;
+      
+      // Re-attach event listeners
+      this.attachEventListeners();
+    }
+
+    private getStatusOption(status: string) {
+      const statusOptions = [
+        { value: 'plan_to_watch', label: 'Plan to Watch', icon: '📋' },
+        { value: 'watching', label: 'Currently Watching', icon: '▶️' },
+        { value: 'completed', label: 'Completed', icon: '✅' },
+        { value: 'on_hold', label: 'On Hold', icon: '⏸️' },
+        { value: 'dropped', label: 'Dropped', icon: '❌' }
+      ];
+      return statusOptions.find(opt => opt.value === status);
+    }
+
+    private getStatusLabel(status: string, mediaType: string) {
+      const baseOption = this.getStatusOption(status);
+      if (!baseOption) return status;
+
+      let label = baseOption.label;
+      
+      if (mediaType === 'book') {
+        label = label.replace('Watch', 'Read').replace('Watching', 'Reading');
+      } else if (mediaType === 'movie') {
+        if (status === 'watching') {
+          label = 'Currently Watching';
+        } else if (status === 'plan_to_watch') {
+          label = 'Plan to Watch';
+        }
+      }
+      
+      return label;
+    }
+
+    private createStatusDropdown(): HTMLElement {
+      const dropdown = document.createElement('div');
+      dropdown.className = 'status-dropdown hidden';
+      
+      const statusOptions = [
+        { value: 'plan_to_watch', label: 'Plan to Watch', icon: '📋' },
+        { value: 'watching', label: 'Currently Watching', icon: '▶️' },
+        { value: 'completed', label: 'Completed', icon: '✅' },
+        { value: 'on_hold', label: 'On Hold', icon: '⏸️' },
+        { value: 'dropped', label: 'Dropped', icon: '❌' }
+      ];
+
+      statusOptions.forEach(option => {
+        const button = document.createElement('button');
+        button.className = 'status-option';
+        button.dataset.status = option.value;
+        button.dataset.isCurrent = (option.value === this.currentStatus).toString();
+        
+        const label = this.getStatusLabel(option.value, this.mediaType);
+        const currentIndicator = option.value === this.currentStatus ? '<span class="current-indicator">✓</span>' : '';
+        
+        button.innerHTML = `
+          <span class="option-icon">${option.icon}</span>
+          <span class="option-text">${label}</span>
+          ${currentIndicator}
+        `;
+        
+        dropdown.appendChild(button);
+      });
+
+      // Add remove option if there's a current status
+      if (this.currentStatus) {
+        const removeButton = document.createElement('button');
+        removeButton.className = 'status-option remove-option';
+        removeButton.dataset.status = 'remove';
+        removeButton.innerHTML = `
+          <span class="option-icon">🗑️</span>
+          <span class="option-text">Remove from List</span>
+        `;
+        dropdown.appendChild(removeButton);
+      }
+
+      return dropdown;
+    }
+
+    private attachEventListeners() {
+      // Remove existing listeners to avoid duplicates
+      const mainBtn = this.container.querySelector('.current-status-btn, .add-to-list-btn');
+      const statusOptions = this.container.querySelectorAll('.status-option');
+
+      if (mainBtn) {
+        mainBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.toggleDropdown();
+        });
+      }
+
+      statusOptions.forEach(option => {
+        option.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const status = (option as HTMLElement).dataset.status!;
+          this.handleStatusChange(status);
+        });
+      });
+    }
+
+    private showLoading() {
+      this.isLoading = true;
+      this.container.querySelector('.current-status-container, .add-new-container')?.classList.add('hidden');
+      this.container.querySelector('.loading-state')?.classList.remove('hidden');
+      this.hideError();
+    }
+
+    private hideLoading() {
+      this.isLoading = false;
+      this.container.querySelector('.loading-state')?.classList.add('hidden');
+      this.container.querySelector('.current-status-container, .add-new-container')?.classList.remove('hidden');
+    }
+
+    private showError(message: string) {
+      const errorState = this.container.querySelector('.error-state');
+      const errorMessage = this.container.querySelector('.error-message');
+      
+      if (errorState && errorMessage) {
+        errorMessage.textContent = message;
+        errorState.classList.remove('hidden');
+      }
+    }
+
+    private hideError() {
+      this.container.querySelector('.error-state')?.classList.add('hidden');
+    }
+  }
+
+  // Initialize all AddToListButton components on the page
+  document.addEventListener('DOMContentLoaded', () => {
+    const containers = document.querySelectorAll('.add-to-list-container');
+    containers.forEach(container => {
+      new AddToListButton(container as HTMLElement);
+    });
+  });
+</script>

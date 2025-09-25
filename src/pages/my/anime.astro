@@ -1,0 +1,310 @@
+---
+import Layout from "../../layout/layout.astro";
+import Header from "../../components/Header.astro";
+import { supabase } from "../../lib/supabase";
+import { calculateUserStats } from "../../lib/userStats";
+
+// Check if user is authenticated
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/login");
+}
+
+// Set up Supabase session
+supabase.auth.setSession({
+  access_token: accessToken.value,
+  refresh_token: refreshToken.value,
+});
+
+const {
+  data: { user },
+  error: authError,
+} = await supabase.auth.getUser();
+
+if (authError || !user) {
+  return Astro.redirect("/login");
+}
+
+// Get user profile
+const { data: profile } = await supabase
+  .from("user_profiles")
+  .select("*")
+  .eq("id", user.id)
+  .single();
+
+if (!profile) {
+  return Astro.redirect("/profile/setup");
+}
+
+// Get user stats
+const stats = await calculateUserStats(user.id);
+
+// Get user's anime with media details
+const { data: userAnime, error: animeError } = await supabase
+  .from('user_media')
+  .select(`
+    *,
+    media:media_items!inner(*)
+  `)
+  .eq('user_id', user.id)
+  .eq('media.media_type', 'anime')
+  .order('updated_at', { ascending: false });
+
+if (animeError) {
+  console.error('Error fetching user anime:', animeError);
+}
+
+const anime = userAnime || [];
+
+// Group anime by status
+const animeByStatus = {
+  watching: anime.filter(item => item.status === 'watching'),
+  completed: anime.filter(item => item.status === 'completed'),
+  plan_to_watch: anime.filter(item => item.status === 'plan_to_watch'),
+  on_hold: anime.filter(item => item.status === 'on_hold'),
+  dropped: anime.filter(item => item.status === 'dropped')
+};
+
+const statusLabels = {
+  watching: 'Currently Watching',
+  completed: 'Completed',
+  plan_to_watch: 'Plan to Watch',
+  on_hold: 'On Hold',
+  dropped: 'Dropped'
+};
+
+const statusColors = {
+  watching: 'bg-blue-500',
+  completed: 'bg-green-500',
+  plan_to_watch: 'bg-yellow-500',
+  on_hold: 'bg-orange-500',
+  dropped: 'bg-red-500'
+};
+---
+
+<Layout title="My Anime">
+  <main class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <Header />
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Header Section -->
+      <div class="mb-8">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">My Anime</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">
+              {profile.display_name || profile.username}'s anime collection
+            </p>
+          </div>
+          <a 
+            href="/search?type=anime" 
+            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+            Add Anime
+          </a>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-gray-900 dark:text-white">{stats.mediaTypeBreakdown.anime}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">Total Anime</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-blue-600">{animeByStatus.watching.length}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">Watching</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-green-600">{animeByStatus.completed.length}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">Completed</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-yellow-600">{animeByStatus.plan_to_watch.length}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">Plan to Watch</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-lg p-4 text-center">
+            <div class="text-2xl font-bold text-purple-600">
+              {stats.averageRating > 0 ? stats.averageRating.toFixed(1) : 'N/A'}
+            </div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">Avg Rating</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Tabs -->
+      <div class="mb-6">
+        <div class="border-b border-gray-200 dark:border-gray-700">
+          <nav class="flex space-x-8">
+            <button 
+              class="status-tab py-2 px-1 border-b-2 font-medium text-sm transition-colors border-blue-500 text-blue-600 dark:text-blue-400"
+              data-status="all"
+            >
+              All Anime ({anime.length})
+            </button>
+            {Object.entries(animeByStatus).map(([status, statusAnime]) => (
+              <button 
+                class="status-tab py-2 px-1 border-b-2 font-medium text-sm transition-colors border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                data-status={status}
+              >
+                {statusLabels[status]} ({statusAnime.length})
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      <!-- Anime Grid -->
+      <div class="anime-container">
+        <!-- All Anime -->
+        <div class="status-content" data-status-content="all">
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {anime.map(item => (
+              <div class="anime-card group cursor-pointer" data-anime-id={item.media.id}>
+                <div class="relative">
+                  <img 
+                    src={item.media.poster_url || '/placeholder-anime.jpg'} 
+                    alt={item.media.title}
+                    class="w-full aspect-[2/3] object-cover rounded-lg shadow-md group-hover:shadow-lg transition-shadow"
+                    loading="lazy"
+                  />
+                  <div class="absolute top-2 left-2">
+                    <div class={`w-3 h-3 rounded-full ${statusColors[item.status]}`}></div>
+                  </div>
+                  {item.rating && (
+                    <div class="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
+                      ★ {item.rating}
+                    </div>
+                  )}
+                </div>
+                <div class="mt-2">
+                  <h3 class="font-medium text-sm text-gray-900 dark:text-white line-clamp-2" title={item.media.title}>
+                    {item.media.title}
+                  </h3>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {item.media.release_date ? new Date(item.media.release_date).getFullYear() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- Status-specific content -->
+        {Object.entries(animeByStatus).map(([status, statusAnime]) => (
+          <div class="status-content hidden" data-status-content={status}>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {statusAnime.map(item => (
+                <div class="anime-card group cursor-pointer" data-anime-id={item.media.id}>
+                  <div class="relative">
+                    <img 
+                      src={item.media.poster_url || '/placeholder-anime.jpg'} 
+                      alt={item.media.title}
+                      class="w-full aspect-[2/3] object-cover rounded-lg shadow-md group-hover:shadow-lg transition-shadow"
+                      loading="lazy"
+                    />
+                    <div class="absolute top-2 left-2">
+                      <div class={`w-3 h-3 rounded-full ${statusColors[status]}`}></div>
+                    </div>
+                    {item.rating && (
+                      <div class="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
+                        ★ {item.rating}
+                      </div>
+                    )}
+                  </div>
+                  <div class="mt-2">
+                    <h3 class="font-medium text-sm text-gray-900 dark:text-white line-clamp-2" title={item.media.title}>
+                      {item.media.title}
+                    </h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {item.media.release_date ? new Date(item.media.release_date).getFullYear() : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <!-- Empty State -->
+        <div class="empty-state text-center py-12 hidden">
+          <div class="text-6xl mb-4">🎌</div>
+          <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No anime found</h3>
+          <p class="text-gray-500 dark:text-gray-400 mb-4">Start building your anime collection!</p>
+          <a 
+            href="/search?type=anime" 
+            class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Browse Anime
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Handle status tab switching
+    const statusTabs = document.querySelectorAll('.status-tab');
+    const statusContents = document.querySelectorAll('.status-content');
+    const emptyState = document.querySelector('.empty-state');
+
+    statusTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const status = tab.dataset.status;
+        
+        // Update tab states
+        statusTabs.forEach(t => {
+          t.classList.remove('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+          t.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'dark:text-gray-400', 'dark:hover:text-gray-300');
+        });
+        
+        tab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'dark:text-gray-400', 'dark:hover:text-gray-300');
+        tab.classList.add('border-blue-500', 'text-blue-600', 'dark:text-blue-400');
+        
+        // Update content visibility
+        statusContents.forEach(content => {
+          content.classList.add('hidden');
+        });
+        
+        const activeContent = document.querySelector(`[data-status-content="${status}"]`);
+        if (activeContent) {
+          activeContent.classList.remove('hidden');
+          
+          // Check if content is empty
+          const animeCards = activeContent.querySelectorAll('.anime-card');
+          if (animeCards.length === 0) {
+            emptyState?.classList.remove('hidden');
+          } else {
+            emptyState?.classList.add('hidden');
+          }
+        }
+      });
+    });
+
+    // Handle anime card clicks
+    document.addEventListener('click', (e) => {
+      const animeCard = e.target.closest('.anime-card');
+      if (animeCard) {
+        const animeId = animeCard.dataset.animeId;
+        if (animeId) {
+          window.location.href = `/media/anime/${animeId}`;
+        }
+      }
+    });
+  });
+</script>

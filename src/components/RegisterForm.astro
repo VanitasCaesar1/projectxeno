@@ -1,5 +1,7 @@
 ---
-
+const { error, message } = Astro.url.searchParams.get('error') ? 
+  { error: Astro.url.searchParams.get('error'), message: Astro.url.searchParams.get('message') } : 
+  { error: null, message: null };
 ---
 <section class=" overflow-hidden bg-transparent ">
     <div class="flex overflow-hidden">
@@ -16,18 +18,55 @@
                 <div class="mt-8">
                     <div class="mt-6">
                         
-                        <form action="/api/auth/register" method="POST" class="space-y-6">
+                        {error && (
+                            <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                <div class="flex">
+                                    <div class="flex-shrink-0">
+                                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-red-800">{message || error}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <form id="registerForm" action="/api/auth/register" method="POST" class="space-y-6">
+                            <div>
+                                <label for="username" class="block text-md font-medium dark:text-white text-neutral-600"> Username </label>
+                                <div class="mt-1">
+                                    <input id="username" name="username" type="text" autocomplete="username" required="" placeholder="Choose a username" class="block w-full px-5 py-3 text-base text-neutral-600 placeholder-gray-300 transition duration-500 ease-in-out transform border border-transparent rounded-lg bg-gray-50 focus:outline-none focus:border-transparent focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-300">
+                                    <div id="username-error" class="mt-1 text-sm text-red-600 hidden"></div>
+                                    <div id="username-success" class="mt-1 text-sm text-green-600 hidden"></div>
+                                </div>
+                            </div>
+
                             <div>
                                 <label for="email" class="block text-md font-medium dark:text-white text-neutral-600"> Email address </label>
                                 <div class="mt-1">
                                     <input id="email" name="email" type="email" autocomplete="email" required="" placeholder="Your Email" class="block w-full px-5 py-3 text-base text-neutral-600 placeholder-gray-300 transition duration-500 ease-in-out transform border border-transparent rounded-lg bg-gray-50 focus:outline-none focus:border-transparent focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-300">
+                                    <div id="email-error" class="mt-1 text-sm text-red-600 hidden"></div>
                                 </div>
                             </div>
 
                             <div class="space-y-1">
-                                <label for="password" class="block text-sm font-medium text-neutral-600"> Password </label>
+                                <label for="password" class="block text-sm font-medium dark:text-white text-neutral-600"> Password </label>
                                 <div class="mt-1">
-                                    <input id="password" name="password" type="password" autocomplete="current-password" required="" placeholder="Your Password" class="block w-full px-5 py-3 text-base text-neutral-600 placeholder-gray-300 transition duration-500 ease-in-out transform border border-transparent rounded-lg bg-gray-50 focus:outline-none focus:border-transparent focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-300">
+                                    <input id="password" name="password" type="password" autocomplete="new-password" required="" placeholder="Your Password" class="block w-full px-5 py-3 text-base text-neutral-600 placeholder-gray-300 transition duration-500 ease-in-out transform border border-transparent rounded-lg bg-gray-50 focus:outline-none focus:border-transparent focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-300">
+                                    <div id="password-error" class="mt-1 text-sm text-red-600 hidden"></div>
+                                    <div class="mt-2 text-xs text-gray-500">
+                                        Password must be at least 8 characters long
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-1">
+                                <label for="confirmPassword" class="block text-sm font-medium dark:text-white text-neutral-600"> Confirm Password </label>
+                                <div class="mt-1">
+                                    <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required="" placeholder="Confirm Your Password" class="block w-full px-5 py-3 text-base text-neutral-600 placeholder-gray-300 transition duration-500 ease-in-out transform border border-transparent rounded-lg bg-gray-50 focus:outline-none focus:border-transparent focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-300">
+                                    <div id="confirmPassword-error" class="mt-1 text-sm text-red-600 hidden"></div>
                                 </div>
                             </div>
 
@@ -43,7 +82,23 @@
                             </div>
 
                             <div>
-                                <button type="submit" class="flex items-center justify-center w-full px-10 py-4 text-base font-medium text-center text-white transition duration-500 ease-in-out transform bg-blue-600 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Sign in</button>
+                                <button type="submit" id="submitBtn" class="flex items-center justify-center w-full px-10 py-4 text-base font-medium text-center text-white transition duration-500 ease-in-out transform bg-blue-600 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span id="submitText">Create Account</span>
+                                    <svg id="loadingSpinner" class="animate-spin -mr-1 ml-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <!-- Sign in link -->
+                            <div class="text-center mt-6">
+                                <p class="text-sm text-gray-600 dark:text-gray-400">
+                                    Already have an account? 
+                                    <a href="/login" class="font-bold text-blue-600 hover:text-blue-500 transition duration-200">
+                                        Sign in here
+                                    </a>
+                                </p>
                             </div>
                         </form>
                         <div class="relative my-4">
@@ -82,3 +137,102 @@
         </div>
     </div>
 </section>
+
+<script>
+    import { createFormValidator, CommonValidators, checkUsernameAvailability } from '../lib/formValidation';
+    import { handleAPIError } from '../lib/networkUtils';
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('registerForm') as HTMLFormElement;
+        const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+        const submitText = document.getElementById('submitText') as HTMLSpanElement;
+        const loadingSpinner = document.getElementById('loadingSpinner') as HTMLElement;
+
+        // Create form validator with enhanced validation
+        const validator = createFormValidator('#registerForm', {
+            ...CommonValidators.registerForm(),
+            onValidationChange: (isValid, errors) => {
+                // Update submit button state
+                submitBtn.disabled = !isValid;
+                if (isValid) {
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            },
+            submitHandler: async (formData, isValid) => {
+                if (!isValid) return;
+
+                try {
+                    // Show loading state
+                    submitBtn.disabled = true;
+                    submitText.textContent = 'Creating Account...';
+                    loadingSpinner.classList.remove('hidden');
+
+                    // Check username availability one more time before submission
+                    const username = formData.get('username') as string;
+                    const isAvailable = await checkUsernameAvailability(username);
+                    
+                    if (!isAvailable) {
+                        validator?.setCustomError('username', 'Username is no longer available');
+                        return;
+                    }
+
+                    // Submit form
+                    form.submit();
+
+                } catch (error) {
+                    const errorMessage = handleAPIError(error);
+                    window.showErrorToast?.(errorMessage);
+                    
+                    // Reset loading state
+                    submitBtn.disabled = false;
+                    submitText.textContent = 'Create Account';
+                    loadingSpinner.classList.add('hidden');
+                }
+            }
+        });
+
+        // Add real-time username availability checking
+        const usernameInput = document.getElementById('username') as HTMLInputElement;
+        let usernameCheckTimeout: NodeJS.Timeout;
+
+        usernameInput.addEventListener('input', function() {
+            const username = this.value.trim();
+            const successDiv = document.getElementById('username-success')!;
+
+            // Clear previous timeout and success message
+            clearTimeout(usernameCheckTimeout);
+            successDiv.classList.add('hidden');
+
+            if (username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username)) {
+                // Check username availability after 500ms delay
+                usernameCheckTimeout = setTimeout(async () => {
+                    try {
+                        const isAvailable = await checkUsernameAvailability(username);
+                        
+                        if (isAvailable) {
+                            successDiv.textContent = 'Username is available';
+                            successDiv.classList.remove('hidden');
+                            validator?.clearErrors();
+                        } else {
+                            validator?.setCustomError('username', 'Username is already taken');
+                        }
+                    } catch (error) {
+                        console.error('Error checking username:', error);
+                        window.showWarningToast?.('Unable to check username availability');
+                    }
+                }, 500);
+            }
+        });
+
+        // Handle network errors
+        window.addEventListener('offline', () => {
+            window.showWarningToast?.('You are offline. Please check your connection.');
+        });
+
+        window.addEventListener('online', () => {
+            window.showSuccessToast?.('Connection restored.');
+        });
+    });
+</script>

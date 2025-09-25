@@ -1,13 +1,140 @@
 ---
-import Footer from "../components/Footer.astro";
-import Hero from "../components/Hero.astro";
 import Layout from "../layout/layout.astro";
 import Header from "../components/Header.astro";
+import UserProfile from "../components/UserProfile.astro";
+import { supabase } from '../lib/supabase';
+import { calculateUserStats, getRecentMediaActivity } from '../lib/userStats';
 
+// Check if user is authenticated
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/login");
+}
+
+// Set up Supabase session
+supabase.auth.setSession({
+  access_token: accessToken.value,
+  refresh_token: refreshToken.value,
+});
+
+const { data: { user } } = await supabase.auth.getUser();
+
+if (!user) {
+  return Astro.redirect("/login");
+}
+
+// Get user profile
+const { data: profile, error: profileError } = await supabase
+  .from('user_profiles')
+  .select('*')
+  .eq('id', user.id)
+  .single();
+
+// If no profile exists, redirect to setup
+if (!profile) {
+  return Astro.redirect("/profile/setup");
+}
+
+// Get user preferences
+const { data: preferences } = await supabase
+  .from('user_preferences')
+  .select('*')
+  .eq('user_id', user.id)
+  .single();
+
+// Calculate user statistics
+const stats = await calculateUserStats(user.id);
+
+// Get recent activity
+const recentActivity = await getRecentMediaActivity(user.id, 10);
 ---
 
-<Layout>
-	<main>
-		<Header />
-	</main>
+<Layout title="Profile">
+  <main>
+    <Header />
+    
+    <div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- User Profile Component -->
+        <UserProfile 
+          profile={profile} 
+          preferences={preferences} 
+          stats={stats} 
+          isOwnProfile={true} 
+        />
+
+        <!-- Recent Activity -->
+        {recentActivity.length > 0 && (
+          <div class="mt-8 bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 class="text-lg font-medium text-gray-900 dark:text-white">Recent Activity</h2>
+            </div>
+            <div class="p-6">
+              <div class="space-y-4">
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} class="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div class="flex-shrink-0">
+                      {activity.media?.poster_url ? (
+                        <img 
+                          src={activity.media.poster_url} 
+                          alt={activity.media.title}
+                          class="h-16 w-12 object-cover rounded"
+                        />
+                      ) : (
+                        <div class="h-16 w-12 bg-gray-300 dark:bg-gray-600 rounded flex items-center justify-center">
+                          <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 110 2h-1v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6H3a1 1 0 110-2h4z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 dark:text-white">
+                        {activity.media?.title}
+                      </p>
+                      <p class="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                        {activity.status.replace('_', ' ')} • {activity.media?.media_type}
+                      </p>
+                      {activity.rating && (
+                        <div class="flex items-center mt-1">
+                          <span class="text-sm text-yellow-500">★</span>
+                          <span class="text-sm text-gray-600 dark:text-gray-400 ml-1">{activity.rating}/10</span>
+                        </div>
+                      )}
+                    </div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(activity.updated_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <!-- Empty State -->
+        {recentActivity.length === 0 && (
+          <div class="mt-8 bg-white dark:bg-gray-800 shadow rounded-lg">
+            <div class="p-12 text-center">
+              <div class="text-gray-400 dark:text-gray-500 mb-4">
+                <svg class="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No content yet</h3>
+              <p class="text-gray-500 dark:text-gray-400 mb-4">Start tracking your favorite movies, books, anime, and TV shows!</p>
+              <a 
+                href="/search" 
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Start Exploring
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </main>
 </Layout>

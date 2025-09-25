@@ -1,0 +1,413 @@
+---
+interface Props {
+  inputId?: string;
+  maxSuggestions?: number;
+  includeHistory?: boolean;
+}
+
+const { 
+  inputId = 'search-input',
+  maxSuggestions = 8,
+  includeHistory = true
+} = Astro.props;
+---
+
+<div 
+  id="search-suggestions" 
+  class="absolute z-20 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg mt-1 hidden"
+  data-input-id={inputId}
+  data-max-suggestions={maxSuggestions}
+  data-include-history={includeHistory}
+>
+  <!-- Loading state -->
+  <div id="suggestions-loading" class="hidden p-3">
+    <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+      <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span>Loading suggestions...</span>
+    </div>
+  </div>
+
+  <!-- Suggestions list -->
+  <div id="suggestions-list" class="max-h-64 overflow-y-auto">
+    <!-- Populated dynamically -->
+  </div>
+
+  <!-- Empty state -->
+  <div id="suggestions-empty" class="hidden p-3 text-center text-sm text-gray-500 dark:text-gray-400">
+    No suggestions found
+  </div>
+
+  <!-- Footer -->
+  <div class="border-t border-gray-200 dark:border-gray-600 p-2 text-xs text-gray-400 dark:text-gray-500 text-center">
+    <span>Press <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">↑</kbd> <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">↓</kbd> to navigate, <kbd class="px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Enter</kbd> to select</span>
+  </div>
+</div>
+
+<script>
+  interface SearchSuggestion {
+    query: string;
+    type: 'popular' | 'history' | 'trending';
+    count?: number;
+    lastSearched?: string;
+  }
+
+  class SearchSuggestions {
+    private container: HTMLElement;
+    private input: HTMLInputElement;
+    private loadingElement: HTMLElement;
+    private listElement: HTMLElement;
+    private emptyElement: HTMLElement;
+    private maxSuggestions: number;
+    private includeHistory: boolean;
+    private currentSuggestions: SearchSuggestion[] = [];
+    private selectedIndex: number = -1;
+    private debounceTimer: number | null = null;
+    private abortController: AbortController | null = null;
+
+    constructor() {
+      this.container = document.getElementById('search-suggestions') as HTMLElement;
+      if (!this.container) return;
+
+      const inputId = this.container.dataset.inputId || 'search-input';
+      this.input = document.getElementById(inputId) as HTMLInputElement;
+      if (!this.input) return;
+
+      this.loadingElement = document.getElementById('suggestions-loading') as HTMLElement;
+      this.listElement = document.getElementById('suggestions-list') as HTMLElement;
+      this.emptyElement = document.getElementById('suggestions-empty') as HTMLElement;
+      
+      this.maxSuggestions = parseInt(this.container.dataset.maxSuggestions || '8');
+      this.includeHistory = this.container.dataset.includeHistory === 'true';
+
+      this.init();
+    }
+
+    private init() {
+      // Input events
+      this.input.addEventListener('input', this.handleInput.bind(this));
+      this.input.addEventListener('focus', this.handleFocus.bind(this));
+      this.input.addEventListener('blur', this.handleBlur.bind(this));
+      this.input.addEventListener('keydown', this.handleKeyDown.bind(this));
+
+      // Container events
+      this.container.addEventListener('mousedown', this.handleMouseDown.bind(this));
+      this.container.addEventListener('click', this.handleClick.bind(this));
+
+      // Hide suggestions when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!this.container.contains(e.target as Node) && !this.input.contains(e.target as Node)) {
+          this.hideSuggestions();
+        }
+      });
+    }
+
+    private handleInput(e: Event) {
+      const query = (e.target as HTMLInputElement).value.trim();
+      
+      // Clear previous timer
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      // Debounce the search
+      this.debounceTimer = window.setTimeout(() => {
+        if (query.length >= 2) {
+          this.loadSuggestions(query);
+        } else if (query.length === 0) {
+          this.loadTrendingSuggestions();
+        } else {
+          this.hideSuggestions();
+        }
+      }, 300);
+    }
+
+    private handleFocus() {
+      const query = this.input.value.trim();
+      if (query.length >= 2) {
+        this.loadSuggestions(query);
+      } else {
+        this.loadTrendingSuggestions();
+      }
+    }
+
+    private handleBlur() {
+      // Delay hiding to allow for clicks on suggestions
+      setTimeout(() => {
+        this.hideSuggestions();
+      }, 150);
+    }
+
+    private handleKeyDown(e: KeyboardEvent) {
+      if (!this.isVisible()) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          this.selectNext();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          this.selectPrevious();
+          break;
+        case 'Enter':
+          e.preventDefault();
+          this.selectCurrent();
+          break;
+        case 'Escape':
+          e.preventDefault();
+          this.hideSuggestions();
+          break;
+      }
+    }
+
+    private handleMouseDown(e: Event) {
+      // Prevent blur when clicking on suggestions
+      e.preventDefault();
+    }
+
+    private handleClick(e: Event) {
+      const target = e.target as HTMLElement;
+      const suggestionElement = target.closest('.suggestion-item') as HTMLElement;
+      
+      if (suggestionElement) {
+        const query = suggestionElement.dataset.query;
+        if (query) {
+          this.selectSuggestion(query);
+        }
+      }
+    }
+
+    private async loadSuggestions(query: string) {
+      this.showLoading();
+
+      // Cancel previous request
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+      this.abortController = new AbortController();
+
+      try {
+        const params = new URLSearchParams({
+          q: query,
+          limit: this.maxSuggestions.toString(),
+          ...(this.includeHistory && { includeHistory: 'true' })
+        });
+
+        // Get authentication header
+        const authHeader = await window.getAuthHeader?.() || {};
+        
+        const response = await fetch(`/api/search/suggestions?${params}`, {
+          signal: this.abortController.signal,
+          headers: {
+            ...authHeader
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load suggestions');
+        }
+
+        const data = await response.json();
+        this.renderSuggestions(data.data || []);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return; // Request was cancelled
+        }
+        console.error('Error loading suggestions:', error);
+        this.showEmpty();
+      }
+    }
+
+    private async loadTrendingSuggestions() {
+      this.showLoading();
+
+      try {
+        const params = new URLSearchParams({
+          limit: this.maxSuggestions.toString()
+        });
+
+        const response = await fetch(`/api/search/suggestions?${params}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to load trending suggestions');
+        }
+
+        const data = await response.json();
+        this.renderSuggestions(data.data || []);
+      } catch (error) {
+        console.error('Error loading trending suggestions:', error);
+        this.showEmpty();
+      }
+    }
+
+    private showLoading() {
+      this.container.classList.remove('hidden');
+      this.loadingElement.classList.remove('hidden');
+      this.listElement.innerHTML = '';
+      this.emptyElement.classList.add('hidden');
+      this.selectedIndex = -1;
+    }
+
+    private renderSuggestions(suggestions: SearchSuggestion[]) {
+      this.currentSuggestions = suggestions;
+      this.loadingElement.classList.add('hidden');
+      
+      if (suggestions.length === 0) {
+        this.showEmpty();
+        return;
+      }
+
+      this.emptyElement.classList.add('hidden');
+      this.listElement.innerHTML = '';
+
+      suggestions.forEach((suggestion, index) => {
+        const item = this.createSuggestionItem(suggestion, index);
+        this.listElement.appendChild(item);
+      });
+
+      this.container.classList.remove('hidden');
+    }
+
+    private createSuggestionItem(suggestion: SearchSuggestion, index: number): HTMLElement {
+      const item = document.createElement('div');
+      item.className = 'suggestion-item flex items-center justify-between px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors';
+      item.dataset.query = suggestion.query;
+      item.dataset.index = index.toString();
+
+      const typeIcons = {
+        popular: '🔥',
+        history: '🕒',
+        trending: '📈'
+      };
+
+      const typeLabels = {
+        popular: 'Popular',
+        history: 'Recent',
+        trending: 'Trending'
+      };
+
+      item.innerHTML = `
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <span class="text-lg">${typeIcons[suggestion.type]}</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-gray-900 dark:text-gray-100 truncate">${suggestion.query}</div>
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              ${typeLabels[suggestion.type]}
+              ${suggestion.count ? ` • ${suggestion.count} searches` : ''}
+              ${suggestion.lastSearched ? ` • ${this.formatDate(suggestion.lastSearched)}` : ''}
+            </div>
+          </div>
+        </div>
+        <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      `;
+
+      return item;
+    }
+
+    private showEmpty() {
+      this.loadingElement.classList.add('hidden');
+      this.listElement.innerHTML = '';
+      this.emptyElement.classList.remove('hidden');
+      this.container.classList.remove('hidden');
+    }
+
+    private hideSuggestions() {
+      this.container.classList.add('hidden');
+      this.selectedIndex = -1;
+    }
+
+    private isVisible(): boolean {
+      return !this.container.classList.contains('hidden');
+    }
+
+    private selectNext() {
+      const maxIndex = this.currentSuggestions.length - 1;
+      this.selectedIndex = Math.min(this.selectedIndex + 1, maxIndex);
+      this.updateSelection();
+    }
+
+    private selectPrevious() {
+      this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+      this.updateSelection();
+    }
+
+    private updateSelection() {
+      // Remove previous selection
+      const previousSelected = this.listElement.querySelector('.selected');
+      previousSelected?.classList.remove('selected', 'bg-gray-100', 'dark:bg-gray-700');
+
+      // Add new selection
+      if (this.selectedIndex >= 0) {
+        const items = this.listElement.querySelectorAll('.suggestion-item');
+        const selectedItem = items[this.selectedIndex];
+        selectedItem?.classList.add('selected', 'bg-gray-100', 'dark:bg-gray-700');
+      }
+    }
+
+    private selectCurrent() {
+      if (this.selectedIndex >= 0 && this.selectedIndex < this.currentSuggestions.length) {
+        const suggestion = this.currentSuggestions[this.selectedIndex];
+        this.selectSuggestion(suggestion.query);
+      }
+    }
+
+    private selectSuggestion(query: string) {
+      this.input.value = query;
+      this.hideSuggestions();
+
+      // Trigger search
+      const event = new Event('input', { bubbles: true });
+      this.input.dispatchEvent(event);
+
+      // Focus back on input
+      this.input.focus();
+    }
+
+    private formatDate(dateString: string): string {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) {
+        return 'Today';
+      } else if (diffDays === 1) {
+        return 'Yesterday';
+      } else if (diffDays < 7) {
+        return `${diffDays} days ago`;
+      } else {
+        return date.toLocaleDateString();
+      }
+    }
+  }
+
+  // Initialize when DOM is loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => new SearchSuggestions());
+  } else {
+    new SearchSuggestions();
+  }
+</script>
+
+<style>
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+</style>

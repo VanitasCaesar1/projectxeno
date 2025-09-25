@@ -1,0 +1,201 @@
+---
+interface Props {
+  sections: Array<{
+    id: string;
+    title: string;
+    type: "popular" | "trending" | "top_rated" | "recommended";
+  }>;
+  activeSection: string;
+  class?: string;
+}
+
+const { sections, activeSection, class: className = "" } = Astro.props;
+---
+
+<div class={`section-switcher ${className}`}>
+  <div class="flex flex-wrap gap-2 mb-6">
+    {
+      sections.map((section) => (
+        <button
+          class={`section-tab px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
+            section.id === activeSection
+              ? "bg-blue-600 text-white"
+              : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+          }`}
+          data-section-id={section.id}
+          data-section-type={section.type}
+          aria-pressed={section.id === activeSection}
+          role="tab"
+        >
+          {section.title}
+        </button>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  class SectionSwitcher {
+    private container: HTMLElement;
+    private activeSection: string;
+    private sections: Map<string, HTMLElement> = new Map();
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.activeSection = "";
+      this.init();
+    }
+
+    private init() {
+      this.setupEventListeners();
+      this.findSections();
+    }
+
+    private setupEventListeners() {
+      const tabs = this.container.querySelectorAll(".section-tab");
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", (e) => {
+          const button = e.target as HTMLButtonElement;
+          const sectionId = button.dataset.sectionId;
+          if (sectionId) {
+            this.switchToSection(sectionId);
+          }
+        });
+      });
+    }
+
+    private findSections() {
+      // Find all content sections in the parent container
+      const parentContainer = this.container.closest(".content-sections-container") || document;
+      const sectionElements = parentContainer.querySelectorAll(".content-section");
+      
+      sectionElements.forEach((section) => {
+        const sectionId = (section as HTMLElement).dataset.section;
+        if (sectionId) {
+          this.sections.set(sectionId, section as HTMLElement);
+        }
+      });
+    }
+
+    public switchToSection(sectionId: string) {
+      if (this.activeSection === sectionId) return;
+
+      // Hide all sections
+      this.sections.forEach((section, id) => {
+        if (id === sectionId) {
+          section.classList.remove("hidden");
+          section.setAttribute("aria-hidden", "false");
+        } else {
+          section.classList.add("hidden");
+          section.setAttribute("aria-hidden", "true");
+        }
+      });
+
+      // Update tab states
+      const tabs = this.container.querySelectorAll(".section-tab");
+      tabs.forEach((tab) => {
+        const button = tab as HTMLButtonElement;
+        const tabSectionId = button.dataset.sectionId;
+        
+        if (tabSectionId === sectionId) {
+          button.classList.remove("bg-gray-100", "dark:bg-gray-700", "text-gray-700", "dark:text-gray-300", "hover:bg-gray-200", "dark:hover:bg-gray-600");
+          button.classList.add("bg-blue-600", "text-white");
+          button.setAttribute("aria-pressed", "true");
+        } else {
+          button.classList.remove("bg-blue-600", "text-white");
+          button.classList.add("bg-gray-100", "dark:bg-gray-700", "text-gray-700", "dark:text-gray-300", "hover:bg-gray-200", "dark:hover:bg-gray-600");
+          button.setAttribute("aria-pressed", "false");
+        }
+      });
+
+      this.activeSection = sectionId;
+
+      // Trigger content loading for the active section if needed
+      const activeSection = this.sections.get(sectionId);
+      if (activeSection) {
+        const sectionInstance = (window as any).ContentSection;
+        if (sectionInstance) {
+          // Check if section has content, if not load it
+          const grid = activeSection.querySelector(".section-grid");
+          if (grid && grid.children.length === 0) {
+            // Trigger loading for this section
+            const event = new CustomEvent("sectionActivated", {
+              detail: { sectionId },
+              bubbles: true
+            });
+            activeSection.dispatchEvent(event);
+          }
+        }
+      }
+
+      // Update URL hash for bookmarking
+      if (history.replaceState) {
+        const url = new URL(window.location.href);
+        url.hash = `section-${sectionId}`;
+        history.replaceState(null, "", url.toString());
+      }
+
+      // Dispatch custom event for analytics
+      const switchEvent = new CustomEvent("sectionSwitched", {
+        detail: { 
+          fromSection: this.activeSection,
+          toSection: sectionId 
+        },
+        bubbles: true
+      });
+      this.container.dispatchEvent(switchEvent);
+    }
+
+    public getActiveSection(): string {
+      return this.activeSection;
+    }
+
+    public setActiveSection(sectionId: string) {
+      this.switchToSection(sectionId);
+    }
+  }
+
+  // Initialize section switchers when DOM is loaded
+  document.addEventListener("DOMContentLoaded", () => {
+    const switchers = document.querySelectorAll(".section-switcher");
+    switchers.forEach((switcher) => {
+      const instance = new SectionSwitcher(switcher as HTMLElement);
+      
+      // Store instance for external access
+      (switcher as any)._sectionSwitcher = instance;
+      
+      // Check URL hash for initial section
+      const hash = window.location.hash;
+      if (hash.startsWith("#section-")) {
+        const sectionId = hash.replace("#section-", "");
+        instance.setActiveSection(sectionId);
+      }
+    });
+  });
+
+  // Export for external use
+  (window as any).SectionSwitcher = SectionSwitcher;
+</script>
+
+<style>
+  .section-tab:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+
+  .section-tab:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  @media (max-width: 640px) {
+    .section-switcher .flex {
+      justify-content: center;
+    }
+    
+    .section-tab {
+      flex: 1;
+      min-width: 0;
+      text-align: center;
+    }
+  }
+</style>

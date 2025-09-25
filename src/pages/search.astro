@@ -1,0 +1,107 @@
+---
+import Layout from '../layouts/Layout.astro';
+import UniversalSearch from '../components/UniversalSearch.astro';
+
+const title = 'Search Media';
+const query = Astro.url.searchParams.get('q') || '';
+---
+
+<Layout title={title}>
+  <main class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Universal Media Search</h1>
+        <p class="text-lg text-gray-600">
+          Discover movies, TV shows, books, anime, and manga from multiple sources
+        </p>
+      </div>
+
+      <!-- Search Component -->
+      <UniversalSearch 
+        initialQuery={query}
+        placeholder="Search movies, TV shows, books, anime, manga..."
+        showResults={true}
+        showAdvancedFilters={true}
+        showSavedSearches={true}
+        showSuggestions={true}
+      />
+
+      <!-- Quick Search Categories -->
+      <div class="mt-12">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Popular Categories</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <a 
+            href="/search?q=marvel" 
+            class="bg-white rounded-lg p-4 text-center hover:shadow-md transition-shadow duration-200 border border-gray-200"
+          >
+            <div class="text-2xl mb-2">🦸</div>
+            <div class="font-medium text-gray-900">Marvel</div>
+          </a>
+          <a 
+            href="/search?q=studio ghibli" 
+            class="bg-white rounded-lg p-4 text-center hover:shadow-md transition-shadow duration-200 border border-gray-200"
+          >
+            <div class="text-2xl mb-2">🎬</div>
+            <div class="font-medium text-gray-900">Studio Ghibli</div>
+          </a>
+          <a 
+            href="/search?q=harry potter" 
+            class="bg-white rounded-lg p-4 text-center hover:shadow-md transition-shadow duration-200 border border-gray-200"
+          >
+            <div class="text-2xl mb-2">📚</div>
+            <div class="font-medium text-gray-900">Harry Potter</div>
+          </a>
+          <a 
+            href="/search?q=one piece" 
+            class="bg-white rounded-lg p-4 text-center hover:shadow-md transition-shadow duration-200 border border-gray-200"
+          >
+            <div class="text-2xl mb-2">⚔️</div>
+            <div class="font-medium text-gray-900">One Piece</div>
+          </a>
+          <a 
+            href="/search?q=breaking bad" 
+            class="bg-white rounded-lg p-4 text-center hover:shadow-md transition-shadow duration-200 border border-gray-200"
+          >
+            <div class="text-2xl mb-2">📺</div>
+            <div class="font-medium text-gray-900">Breaking Bad</div>
+          </a>
+        </div>
+      </div>
+
+      <!-- API Sources Info -->
+      <div class="mt-12 bg-white rounded-lg p-6 border border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Data Sources</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+              <span class="text-blue-600 font-semibold text-sm">T</span>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">TMDB</div>
+              <div class="text-sm text-gray-500">Movies & TV Shows</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+              <span class="text-green-600 font-semibold text-sm">O</span>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">Open Library</div>
+              <div class="text-sm text-gray-500">Books</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+              <span class="text-orange-600 font-semibold text-sm">J</span>
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">Jikan</div>
+              <div class="text-sm text-gray-500">Anime & Manga</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>

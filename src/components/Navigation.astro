@@ -1,36 +1,93 @@
 ---
 import ThemeIcon from "./ThemeIcon.astro"
-const { cookies } = Astro;
+import NotificationBell from "./NotificationBell.astro"
+import { supabase } from '../lib/supabase';
 
+const { cookies } = Astro;
 
 const accessToken = cookies.get("sb-access-token");
 const refreshToken = cookies.get("sb-refresh-token");
 
-
 let userIsLoggedIn = false;
+let userId = null;
 	
 if (accessToken && refreshToken) {
 	userIsLoggedIn = true;
-} 
 	
+	// Get user ID for notifications
+	try {
+		const { data: { user } } = await supabase.auth.getUser(accessToken.value);
+		if (user) {
+			userId = user.id;
+		}
+	} catch (error) {
+		console.error('Error getting user for notifications:', error);
+	}
+} 
 
+// Get current path for active navigation highlighting
+const currentPath = Astro.url.pathname;
 
+// Helper function to determine if a link is active
+function isActive(path: string): boolean {
+	return currentPath === path;
+}
+
+// Helper function to get link classes with improved accessibility
+function getLinkClasses(path: string): string {
+	const baseClasses = "font-extrabold hover:underline hover:text-lime-600 text-sm lg:text-base transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 rounded-sm px-2 py-1";
+	const activeClasses = "text-lime-600 dark:text-lime-400 underline bg-lime-50 dark:bg-lime-900/20";
+	
+	return isActive(path) ? `${baseClasses} ${activeClasses}` : baseClasses;
+}
+
+// Helper function to get page title for screen readers
+function getPageTitle(path: string): string {
+	const titles = {
+		'/': 'Home',
+		'/books': 'Books',
+		'/movies': 'Movies', 
+		'/anime': 'Anime',
+		'/dashboard': 'Dashboard',
+		'/profile': 'Profile'
+	};
+	return titles[path as keyof typeof titles] || 'Page';
+}
 
 ---
 
-	<a href="/" class="text-3xl font-bold text-black dark:text-white">
+	<a href="/" class="text-2xl sm:text-3xl font-bold text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 rounded-sm" aria-label="CoffeePlease - Home">
 		<span>Coff<span class="text-lime-600 dark:text-lime-400">ee</span>Pleas<span class="text-lime-600 dark:text-lime-400">e</span></span>
 		<!-- <img src="./your-logo.svg" alt="brand logo" class="w-10" /> -->
 	</a>
 	<!-- Desktop Menu -->
-	<ul class="hidden items-center gap-4 sm:flex">
-		<li><a href="/books" class="font-extrabold hover:underline hover:text-lime-600" aria-current="page">Books</a></li>
-		<li><a href="/movies" class="font-extrabold hover:underline hover:text-lime-600">Movies</a></li>
-		<li><a href="/anime" class="font-extrabold hover:underline hover:text-lime-600">Anime</a></li>
-		<!-- CTA Button -->
-		<ThemeIcon/>
-		{ userIsLoggedIn ? <li><a href="/profile" class="rounded-2xl bg-black hover:bg-lime-400 hover:text-black text-white p-4 text-center text-md font-extrabold tracking-wide dark:hover:text-gray-700 dark:bg-lime-400">Profile</a></li>
-		:<li><a href="/login" class="rounded-2xl bg-black hover:bg-lime-400 hover:text-black text-white p-4 text-center text-md font-extrabold tracking-wide dark:hover:text-gray-700 dark:bg-lime-400">Login</a></li>
-		}
-	</ul>
+	<nav role="navigation" aria-label="Main navigation">
+		<ul class="hidden items-center gap-2 lg:gap-4 sm:flex" role="menubar">
+			<li role="none"><a href="/books" class={getLinkClasses('/books')} aria-current={isActive('/books') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/books')} ${isActive('/books') ? '(current page)' : ''}`}>Books</a></li>
+			<li role="none"><a href="/movies" class={getLinkClasses('/movies')} aria-current={isActive('/movies') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/movies')} ${isActive('/movies') ? '(current page)' : ''}`}>Movies</a></li>
+			<li role="none"><a href="/anime" class={getLinkClasses('/anime')} aria-current={isActive('/anime') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/anime')} ${isActive('/anime') ? '(current page)' : ''}`}>Anime</a></li>
+			{ userIsLoggedIn && <li role="none"><a href="/dashboard" class={getLinkClasses('/dashboard')} aria-current={isActive('/dashboard') ? 'page' : undefined} role="menuitem" aria-label={`${getPageTitle('/dashboard')} ${isActive('/dashboard') ? '(current page)' : ''}`}>Dashboard</a></li> }
+			{ userIsLoggedIn && (
+				<li role="none" class="relative group">
+					<button class="font-extrabold hover:underline hover:text-lime-600 text-sm lg:text-base transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 rounded-sm px-2 py-1">
+						My Lists ▼
+					</button>
+					<div class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+						<div class="py-1">
+							<a href="/my/movies" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">🎬 My Movies</a>
+							<a href="/my/books" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">📚 My Books</a>
+							<a href="/my/anime" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">🎌 My Anime</a>
+						</div>
+					</div>
+				</li>
+			) }
+			<!-- Notifications and Theme -->
+			<li role="none"><ThemeIcon/></li>
+			{ userIsLoggedIn && userId && <li role="none"><NotificationBell userId={userId} /></li> }
+			<!-- CTA Button -->
+			{ userIsLoggedIn ? <li role="none"><a href="/profile" class="rounded-2xl bg-black hover:bg-lime-400 hover:text-black text-white px-3 py-2 lg:px-4 lg:py-2 text-center text-sm lg:text-md font-extrabold tracking-wide dark:hover:text-gray-700 dark:bg-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 transition-colors duration-200" role="menuitem" aria-label="Go to Profile">Profile</a></li>
+			:<li role="none"><a href="/login" class="rounded-2xl bg-black hover:bg-lime-400 hover:text-black text-white px-3 py-2 lg:px-4 lg:py-2 text-center text-sm lg:text-md font-extrabold tracking-wide dark:hover:text-gray-700 dark:bg-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 transition-colors duration-200" role="menuitem" aria-label="Go to Login">Login</a></li>
+			}
+		</ul>
+	</nav>
 

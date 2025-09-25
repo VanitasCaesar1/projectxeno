@@ -1,0 +1,501 @@
+---
+import ReviewCard from './ReviewCard.astro';
+
+export interface Props {
+  mediaId?: string;
+  userId?: string;
+  showMedia?: boolean;
+  showActions?: boolean;
+  limit?: number;
+  sortBy?: 'created_at' | 'like_count' | 'rating';
+  sortOrder?: 'asc' | 'desc';
+  currentUserId?: string;
+}
+
+const { 
+  mediaId, 
+  userId, 
+  showMedia = false, 
+  showActions = true,
+  limit = 10,
+  sortBy = 'created_at',
+  sortOrder = 'desc',
+  currentUserId
+} = Astro.props;
+
+// We'll load reviews client-side for better interactivity
+// This component provides the container and loading state
+---
+
+<div class="reviews-list-container">
+  <!-- Reviews Header -->
+  <div class="reviews-header flex items-center justify-between mb-6">
+    <h2 class="text-xl font-semibold text-gray-900">
+      {mediaId ? 'User Reviews' : 'Reviews'}
+    </h2>
+    
+    <!-- Sort Options -->
+    <div class="sort-controls flex items-center gap-2">
+      <label for="reviewSort" class="text-sm text-gray-600">Sort by:</label>
+      <select 
+        id="reviewSort" 
+        class="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        data-current-sort={sortBy}
+        data-current-order={sortOrder}
+      >
+        <option value="created_at:desc" selected={sortBy === 'created_at' && sortOrder === 'desc'}>
+          Newest First
+        </option>
+        <option value="created_at:asc" selected={sortBy === 'created_at' && sortOrder === 'asc'}>
+          Oldest First
+        </option>
+        <option value="like_count:desc" selected={sortBy === 'like_count' && sortOrder === 'desc'}>
+          Most Liked
+        </option>
+        <option value="rating:desc" selected={sortBy === 'rating' && sortOrder === 'desc'}>
+          Highest Rated
+        </option>
+        <option value="rating:asc" selected={sortBy === 'rating' && sortOrder === 'asc'}>
+          Lowest Rated
+        </option>
+      </select>
+    </div>
+  </div>
+  
+  <!-- Loading State -->
+  <div id="reviewsLoading" class="reviews-loading">
+    <div class="flex items-center justify-center py-8">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <span class="ml-2 text-gray-600">Loading reviews...</span>
+    </div>
+  </div>
+  
+  <!-- Reviews Container -->
+  <div id="reviewsContainer" class="reviews-container hidden">
+    <!-- Reviews will be loaded here -->
+  </div>
+  
+  <!-- Empty State -->
+  <div id="reviewsEmpty" class="reviews-empty hidden text-center py-8">
+    <div class="text-gray-400 mb-4">
+      <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 8h10m0 0V6a2 2 0 00-2-2H9a2 2 0 00-2 2v2m10 0v10a2 2 0 01-2 2H9a2 2 0 01-2-2V8m10 0H7m5 5v4"/>
+      </svg>
+    </div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">No reviews yet</h3>
+    <p class="text-gray-600 mb-4">
+      {mediaId 
+        ? 'Be the first to share your thoughts about this title!' 
+        : 'No reviews found matching your criteria.'
+      }
+    </p>
+    {mediaId && currentUserId && (
+      <button 
+        id="writeFirstReview"
+        class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+      >
+        Write the First Review
+      </button>
+    )}
+  </div>
+  
+  <!-- Error State -->
+  <div id="reviewsError" class="reviews-error hidden text-center py-8">
+    <div class="text-red-400 mb-4">
+      <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+      </svg>
+    </div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">Failed to load reviews</h3>
+    <p class="text-gray-600 mb-4">There was an error loading the reviews. Please try again.</p>
+    <button 
+      id="retryLoadReviews"
+      class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+    >
+      Try Again
+    </button>
+  </div>
+  
+  <!-- Load More Button -->
+  <div id="loadMoreContainer" class="load-more-container hidden text-center mt-6">
+    <button 
+      id="loadMoreBtn"
+      class="bg-gray-200 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors"
+    >
+      <span class="load-more-text">Load More Reviews</span>
+      <span class="load-more-loading hidden">Loading...</span>
+    </button>
+  </div>
+</div>
+
+<script define:vars={{ mediaId, userId, showMedia, showActions, limit, sortBy, sortOrder, currentUserId }}>
+  class ReviewsList {
+    constructor() {
+      this.mediaId = mediaId;
+      this.userId = userId;
+      this.showMedia = showMedia;
+      this.showActions = showActions;
+      this.limit = limit;
+      this.currentUserId = currentUserId;
+      this.currentPage = 1;
+      this.currentSort = sortBy;
+      this.currentOrder = sortOrder;
+      this.hasMore = true;
+      
+      this.loadingEl = document.getElementById('reviewsLoading');
+      this.containerEl = document.getElementById('reviewsContainer');
+      this.emptyEl = document.getElementById('reviewsEmpty');
+      this.errorEl = document.getElementById('reviewsError');
+      this.loadMoreContainer = document.getElementById('loadMoreContainer');
+      this.loadMoreBtn = document.getElementById('loadMoreBtn');
+      this.sortSelect = document.getElementById('reviewSort');
+      
+      this.bindEvents();
+      this.loadReviews();
+    }
+    
+    bindEvents() {
+      // Sort change
+      this.sortSelect?.addEventListener('change', (e) => {
+        const [sortBy, sortOrder] = e.target.value.split(':');
+        this.currentSort = sortBy;
+        this.currentOrder = sortOrder;
+        this.currentPage = 1;
+        this.hasMore = true;
+        this.containerEl.innerHTML = '';
+        this.loadReviews();
+      });
+      
+      // Load more
+      this.loadMoreBtn?.addEventListener('click', () => {
+        this.currentPage++;
+        this.loadReviews(true);
+      });
+      
+      // Retry
+      document.getElementById('retryLoadReviews')?.addEventListener('click', () => {
+        this.loadReviews();
+      });
+      
+      // Write first review
+      document.getElementById('writeFirstReview')?.addEventListener('click', () => {
+        // Scroll to review form or show it
+        const reviewForm = document.querySelector('.review-form-container');
+        if (reviewForm) {
+          reviewForm.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    }
+    
+    async loadReviews(append = false) {
+      try {
+        this.showLoading();
+        
+        const params = new URLSearchParams({
+          page: this.currentPage.toString(),
+          limit: this.limit.toString(),
+          sortBy: this.currentSort,
+          sortOrder: this.currentOrder
+        });
+        
+        if (this.mediaId) params.append('mediaId', this.mediaId);
+        if (this.userId) params.append('userId', this.userId);
+        
+        const response = await fetch(`/api/reviews?${params}`);
+        const result = await response.json();
+        
+        if (result.success) {
+          this.renderReviews(result.data, result.pagination, append);
+        } else {
+          this.showError();
+        }
+      } catch (error) {
+        console.error('Error loading reviews:', error);
+        this.showError();
+      }
+    }
+    
+    renderReviews(reviews, pagination, append = false) {
+      this.hideAllStates();
+      
+      if (!reviews || reviews.length === 0) {
+        if (!append) {
+          this.showEmpty();
+        }
+        return;
+      }
+      
+      const reviewsHTML = reviews.map(review => this.renderReviewCard(review)).join('');
+      
+      if (append) {
+        this.containerEl.insertAdjacentHTML('beforeend', reviewsHTML);
+      } else {
+        this.containerEl.innerHTML = reviewsHTML;
+      }
+      
+      this.containerEl.classList.remove('hidden');
+      
+      // Update load more button
+      this.hasMore = pagination.page < pagination.totalPages;
+      if (this.hasMore) {
+        this.loadMoreContainer.classList.remove('hidden');
+      } else {
+        this.loadMoreContainer.classList.add('hidden');
+      }
+      
+      // Re-initialize any interactive elements in the new content
+      this.initializeReviewCards();
+    }
+    
+    renderReviewCard(review) {
+      const createdDate = new Date(review.created_at);
+      const updatedDate = new Date(review.updated_at);
+      const wasUpdated = updatedDate.getTime() !== createdDate.getTime();
+      
+      const formatDate = (date) => {
+        const now = new Date();
+        const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+        
+        if (diffInHours < 1) {
+          const minutes = Math.floor(diffInHours * 60);
+          return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+        } else if (diffInHours < 24) {
+          const hours = Math.floor(diffInHours);
+          return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+        } else if (diffInHours < 24 * 7) {
+          const days = Math.floor(diffInHours / 24);
+          return `${days} day${days !== 1 ? 's' : ''} ago`;
+        } else {
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        }
+      };
+      
+      const isOwnReview = this.currentUserId === review.user.id;
+      const canInteract = !!this.currentUserId && !isOwnReview;
+      
+      return `
+        <article class="review-card bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-4" data-review-id="${review.id}">
+          <header class="review-header flex items-start justify-between mb-4">
+            <div class="user-info flex items-center gap-3">
+              <div class="avatar">
+                ${review.user.avatar_url ? 
+                  `<img src="${review.user.avatar_url}" alt="${review.user.username}'s avatar" class="w-10 h-10 rounded-full object-cover" />` :
+                  `<div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center">
+                     <span class="text-gray-600 font-medium text-sm">${review.user.username.charAt(0).toUpperCase()}</span>
+                   </div>`
+                }
+              </div>
+              <div class="user-details">
+                <div class="flex items-center gap-2">
+                  <a href="/user/${review.user.username}" class="font-medium text-gray-900 hover:text-blue-600 transition-colors">
+                    ${review.user.display_name || review.user.username}
+                  </a>
+                  ${isOwnReview ? '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Your review</span>' : ''}
+                </div>
+                <div class="flex items-center gap-2 text-sm text-gray-500">
+                  <time datetime="${review.created_at}" title="${createdDate.toLocaleString()}">
+                    ${formatDate(createdDate)}
+                  </time>
+                  ${wasUpdated ? `<span>•</span><span title="Updated ${updatedDate.toLocaleString()}">edited</span>` : ''}
+                </div>
+              </div>
+            </div>
+          </header>
+          
+          ${this.showMedia && review.media ? `
+            <div class="media-context mb-4 p-3 bg-gray-50 rounded-lg">
+              <div class="flex items-center gap-3">
+                ${review.media.poster_url ? `<img src="${review.media.poster_url}" alt="${review.media.title} poster" class="w-12 h-16 object-cover rounded" />` : ''}
+                <div>
+                  <h4 class="font-medium text-gray-900">
+                    <a href="/media/${review.media.media_type}/${review.media.id}" class="hover:text-blue-600">
+                      ${review.media.title}
+                    </a>
+                  </h4>
+                  <p class="text-sm text-gray-500 capitalize">${review.media.media_type}</p>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          
+          ${review.rating ? `
+            <div class="review-rating mb-3">
+              <div class="flex items-center gap-2">
+                <div class="flex gap-0.5">
+                  ${Array.from({length: 10}, (_, i) => `
+                    <svg class="w-4 h-4 ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                  `).join('')}
+                </div>
+                <span class="text-sm text-gray-600">${review.rating}/10</span>
+              </div>
+            </div>
+          ` : ''}
+          
+          ${review.title ? `<h3 class="review-title text-lg font-semibold text-gray-900 mb-2">${review.title}</h3>` : ''}
+          
+          ${review.spoiler_warning ? `
+            <div class="spoiler-warning mb-3">
+              <div class="spoiler-toggle bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg class="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                  </svg>
+                  <span class="text-sm font-medium text-yellow-800">Spoiler Warning</span>
+                </div>
+                <button type="button" class="spoiler-reveal-btn text-sm text-yellow-700 hover:text-yellow-900 underline">
+                  Click to reveal spoilers
+                </button>
+              </div>
+            </div>
+          ` : ''}
+          
+          <div class="review-content ${review.spoiler_warning ? 'spoiler-hidden' : ''}">
+            <div class="prose prose-sm max-w-none text-gray-700">
+              ${review.content.split('\n').map(p => p.trim() ? `<p class="mb-2">${p}</p>` : '').join('')}
+            </div>
+          </div>
+          
+          ${this.showActions ? `
+            <footer class="review-footer flex items-center justify-between pt-4 mt-4 border-t border-gray-100">
+              <div class="review-stats flex items-center gap-4">
+                <button
+                  type="button"
+                  class="like-btn flex items-center gap-1 px-3 py-1 rounded-full text-sm transition-colors ${
+                    canInteract 
+                      ? review.isLikedByCurrentUser 
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }"
+                  data-review-id="${review.id}"
+                  data-liked="${review.isLikedByCurrentUser || false}"
+                  ${!canInteract ? 'disabled' : ''}
+                >
+                  <svg class="w-4 h-4" fill="${review.isLikedByCurrentUser ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                  </svg>
+                  <span class="like-count">${review.like_count}</span>
+                </button>
+                ${review.like_count > 0 ? `
+                  <span class="text-xs text-gray-500">
+                    ${review.like_count} ${review.like_count === 1 ? 'person found' : 'people found'} this helpful
+                  </span>
+                ` : ''}
+              </div>
+            </footer>
+          ` : ''}
+        </article>
+      `;
+    }
+    
+    initializeReviewCards() {
+      // Handle spoiler reveals
+      document.querySelectorAll('.spoiler-reveal-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const reviewCard = e.target.closest('.review-card');
+          const spoilerContent = reviewCard.querySelector('.review-content.spoiler-hidden');
+          const spoilerWarning = reviewCard.querySelector('.spoiler-warning');
+          
+          if (spoilerContent) {
+            spoilerContent.classList.remove('spoiler-hidden');
+            spoilerWarning.style.display = 'none';
+          }
+        });
+      });
+      
+      // Handle like/unlike
+      document.querySelectorAll('.like-btn:not([data-initialized])').forEach(btn => {
+        btn.setAttribute('data-initialized', 'true');
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          
+          if (btn.disabled) return;
+          
+          const reviewId = btn.dataset.reviewId;
+          const isLiked = btn.dataset.liked === 'true';
+          const likeCountSpan = btn.querySelector('.like-count');
+          
+          try {
+            btn.disabled = true;
+            
+            const response = await fetch(`/api/reviews/${reviewId}/like`, {
+              method: isLiked ? 'DELETE' : 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              btn.dataset.liked = result.data.liked;
+              likeCountSpan.textContent = result.data.likeCount;
+              
+              if (result.data.liked) {
+                btn.classList.remove('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+                btn.classList.add('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+                btn.querySelector('svg').setAttribute('fill', 'currentColor');
+              } else {
+                btn.classList.remove('bg-red-100', 'text-red-700', 'hover:bg-red-200');
+                btn.classList.add('bg-gray-100', 'text-gray-600', 'hover:bg-gray-200');
+                btn.querySelector('svg').setAttribute('fill', 'none');
+              }
+            } else {
+              console.error('Failed to toggle like:', result.error);
+            }
+          } catch (error) {
+            console.error('Error toggling like:', error);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+    
+    showLoading() {
+      this.hideAllStates();
+      this.loadingEl.classList.remove('hidden');
+    }
+    
+    showEmpty() {
+      this.hideAllStates();
+      this.emptyEl.classList.remove('hidden');
+    }
+    
+    showError() {
+      this.hideAllStates();
+      this.errorEl.classList.remove('hidden');
+    }
+    
+    hideAllStates() {
+      this.loadingEl.classList.add('hidden');
+      this.containerEl.classList.add('hidden');
+      this.emptyEl.classList.add('hidden');
+      this.errorEl.classList.add('hidden');
+      this.loadMoreContainer.classList.add('hidden');
+    }
+  }
+  
+  // Initialize when DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    new ReviewsList();
+  });
+</script>
+
+<style>
+  .spoiler-hidden {
+    filter: blur(5px);
+    user-select: none;
+    pointer-events: none;
+  }
+  
+  .prose p:last-child {
+    margin-bottom: 0;
+  }
+</style>

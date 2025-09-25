@@ -1,0 +1,345 @@
+---
+import { supabase } from '../lib/supabase';
+
+interface Props {
+  userId?: string;
+}
+
+const { userId } = Astro.props;
+
+let unreadCount = 0;
+
+if (userId) {
+  try {
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('read', false);
+
+    unreadCount = count || 0;
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+  }
+}
+---
+
+<div class="notification-bell relative" data-user-id={userId}>
+  <button 
+    id="notification-bell-button"
+    class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full"
+    aria-label="Notifications"
+  >
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+    </svg>
+    
+    {unreadCount > 0 && (
+      <span 
+        id="notification-badge"
+        class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium"
+      >
+        {unreadCount > 99 ? '99+' : unreadCount}
+      </span>
+    )}
+  </button>
+
+  <!-- Notification dropdown -->
+  <div 
+    id="notification-dropdown"
+    class="notification-dropdown absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 hidden"
+  >
+    <div class="notification-dropdown-content">
+      <!-- Content will be loaded dynamically -->
+      <div class="p-4 text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+        <p class="text-sm text-gray-500 mt-2">Loading notifications...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const bellButton = document.getElementById('notification-bell-button');
+    const dropdown = document.getElementById('notification-dropdown');
+    const notificationBell = document.querySelector('.notification-bell');
+    const userId = notificationBell?.getAttribute('data-user-id');
+    
+    if (!bellButton || !dropdown || !userId) return;
+
+    let isDropdownOpen = false;
+    let notificationsLoaded = false;
+
+    // Toggle dropdown
+    bellButton.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      
+      if (isDropdownOpen) {
+        closeDropdown();
+      } else {
+        await openDropdown();
+      }
+    });
+
+    async function openDropdown() {
+      dropdown.classList.remove('hidden');
+      isDropdownOpen = true;
+
+      // Load notifications if not already loaded
+      if (!notificationsLoaded) {
+        await loadNotifications();
+        notificationsLoaded = true;
+      }
+
+      // Add click outside listener
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
+    }
+
+    function closeDropdown() {
+      dropdown.classList.add('hidden');
+      isDropdownOpen = false;
+      document.removeEventListener('click', handleClickOutside);
+    }
+
+    function handleClickOutside(e) {
+      if (!notificationBell?.contains(e.target)) {
+        closeDropdown();
+      }
+    }
+
+    async function loadNotifications() {
+      try {
+        const response = await fetch('/api/notifications?limit=5');
+        const data = await response.json();
+
+        if (data.success) {
+          renderNotifications(data.notifications, data.unreadCount);
+        } else {
+          renderError();
+        }
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+        renderError();
+      }
+    }
+
+    function renderNotifications(notifications, unreadCount) {
+      const content = dropdown.querySelector('.notification-dropdown-content');
+      
+      if (notifications.length === 0) {
+        content.innerHTML = `
+          <div class="p-6 text-center text-gray-500">
+            <div class="text-4xl mb-2">📭</div>
+            <p class="text-sm">No notifications</p>
+          </div>
+        `;
+        return;
+      }
+
+      const notificationItems = notifications.map(notification => {
+        const icon = getNotificationIcon(notification.type);
+        const timeAgo = formatTimeAgo(notification.created_at);
+        const isUnread = !notification.read;
+
+        return `
+          <div class="notification-item p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${isUnread ? 'bg-blue-50' : ''}"
+               data-notification-id="${notification.id}"
+               data-action-url="${notification.action_url || ''}">
+            <div class="flex items-start gap-3">
+              <div class="text-lg">${icon}</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start justify-between">
+                  <h4 class="font-medium text-sm text-gray-900 truncate">
+                    ${notification.title}
+                  </h4>
+                  <span class="text-xs text-gray-500 ml-2">${timeAgo}</span>
+                </div>
+                <p class="text-sm text-gray-600 mt-1 line-clamp-2">
+                  ${notification.message}
+                </p>
+              </div>
+              ${isUnread ? '<div class="w-2 h-2 bg-blue-500 rounded-full"></div>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      content.innerHTML = `
+        <div class="notification-header p-3 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="font-semibold text-gray-900">Notifications</h3>
+          ${unreadCount > 0 ? `
+            <button id="mark-all-read-dropdown" class="text-xs text-blue-600 hover:text-blue-800">
+              Mark all read
+            </button>
+          ` : ''}
+        </div>
+        <div class="notification-list max-h-80 overflow-y-auto">
+          ${notificationItems}
+        </div>
+        <div class="notification-footer p-3 border-t border-gray-100 text-center">
+          <a href="/notifications" class="text-sm text-blue-600 hover:text-blue-800">
+            View all notifications
+          </a>
+        </div>
+      `;
+
+      // Add event listeners for notification items
+      content.querySelectorAll('.notification-item').forEach(item => {
+        item.addEventListener('click', handleNotificationClick);
+      });
+
+      // Add event listener for mark all read
+      const markAllReadBtn = content.querySelector('#mark-all-read-dropdown');
+      if (markAllReadBtn) {
+        markAllReadBtn.addEventListener('click', handleMarkAllRead);
+      }
+    }
+
+    function renderError() {
+      const content = dropdown.querySelector('.notification-dropdown-content');
+      content.innerHTML = `
+        <div class="p-6 text-center text-red-500">
+          <div class="text-2xl mb-2">⚠️</div>
+          <p class="text-sm">Failed to load notifications</p>
+          <button onclick="location.reload()" class="text-xs text-blue-600 hover:text-blue-800 mt-2">
+            Try again
+          </button>
+        </div>
+      `;
+    }
+
+    async function handleNotificationClick(e) {
+      const item = e.currentTarget;
+      const notificationId = item.getAttribute('data-notification-id');
+      const actionUrl = item.getAttribute('data-action-url');
+      const isUnread = item.classList.contains('bg-blue-50');
+
+      // Mark as read if unread
+      if (isUnread && notificationId) {
+        try {
+          const response = await fetch('/api/notifications/mark-read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notificationId })
+          });
+
+          if (response.ok) {
+            item.classList.remove('bg-blue-50');
+            const unreadDot = item.querySelector('.w-2.h-2.bg-blue-500');
+            if (unreadDot) unreadDot.remove();
+            
+            updateBadgeCount(-1);
+          }
+        } catch (error) {
+          console.error('Error marking notification as read:', error);
+        }
+      }
+
+      // Navigate if action URL exists
+      if (actionUrl) {
+        closeDropdown();
+        window.location.href = actionUrl;
+      }
+    }
+
+    async function handleMarkAllRead(e) {
+      e.stopPropagation();
+      
+      try {
+        const response = await fetch('/api/notifications/mark-all-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+          // Update UI
+          dropdown.querySelectorAll('.notification-item').forEach(item => {
+            item.classList.remove('bg-blue-50');
+            const unreadDot = item.querySelector('.w-2.h-2.bg-blue-500');
+            if (unreadDot) unreadDot.remove();
+          });
+
+          // Remove mark all read button
+          e.target.remove();
+          
+          // Update badge
+          const badge = document.getElementById('notification-badge');
+          if (badge) badge.remove();
+        }
+      } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+      }
+    }
+
+    function updateBadgeCount(delta) {
+      const badge = document.getElementById('notification-badge');
+      if (!badge) return;
+
+      const currentCount = parseInt(badge.textContent || '0');
+      const newCount = Math.max(0, currentCount + delta);
+
+      if (newCount === 0) {
+        badge.remove();
+      } else {
+        badge.textContent = newCount > 99 ? '99+' : newCount.toString();
+      }
+    }
+
+    function getNotificationIcon(type) {
+      switch (type) {
+        case 'like': return '❤️';
+        case 'follow': return '👥';
+        case 'review': return '📝';
+        case 'achievement': return '🏆';
+        case 'system': return '🔔';
+        default: return '📢';
+      }
+    }
+
+    function formatTimeAgo(dateString) {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+      if (diffInSeconds < 60) return 'now';
+      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
+      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
+      if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d`;
+      return date.toLocaleDateString();
+    }
+
+    // Listen for real-time notifications (if using Supabase realtime)
+    if (window.supabase) {
+      const channel = window.supabase
+        .channel('notifications')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`
+        }, (payload) => {
+          // Update badge count
+          updateBadgeCount(1);
+          
+          // Refresh notifications if dropdown is open
+          if (isDropdownOpen) {
+            notificationsLoaded = false;
+            loadNotifications();
+          }
+        })
+        .subscribe();
+    }
+  });
+</script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>

@@ -1,0 +1,847 @@
+---
+import SearchResults from "./SearchResults.astro";
+import AdvancedSearchFilters from "./AdvancedSearchFilters.astro";
+import SavedSearches from "./SavedSearches.astro";
+import SearchSuggestions from "./SearchSuggestions.astro";
+import Input from "./ui/Input.astro";
+import LoadingSpinner from "./ui/LoadingSpinner.astro";
+
+interface Props {
+  initialQuery?: string;
+  placeholder?: string;
+  showResults?: boolean;
+  showAdvancedFilters?: boolean;
+  showSavedSearches?: boolean;
+  showSuggestions?: boolean;
+}
+
+const {
+  initialQuery = "",
+  placeholder = "Search movies, TV shows, books, anime, manga...",
+  showResults = true,
+  showAdvancedFilters = true,
+  showSavedSearches = true,
+  showSuggestions = true,
+} = Astro.props;
+---
+
+<div class="universal-search w-full max-w-6xl mx-auto">
+  <!-- Search Input -->
+  <div class="search-container mb-6">
+    <div class="relative">
+      <div
+        class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+      >
+        <svg
+          class="h-5 w-5 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </div>
+      <input
+        type="search"
+        id="search-input"
+        class="block w-full pl-10 pr-12 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-transparent text-base sm:text-lg transition-colors duration-200"
+        placeholder={placeholder}
+        value={initialQuery}
+        autocomplete="off"
+      />
+      <div class="absolute inset-y-0 right-0 pr-3 flex items-center gap-2">
+        <button
+          type="button"
+          id="save-current-search"
+          class="text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1 transition-colors duration-200 hidden"
+          aria-label="Save search"
+          title="Save this search"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+          </svg>
+        </button>
+        <button
+          type="button"
+          id="clear-search"
+          class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-lime-500 rounded-full p-1 transition-colors duration-200 hidden"
+          aria-label="Clear search"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search Suggestions -->
+      {
+        showSuggestions && (
+          <SearchSuggestions
+            inputId="search-input"
+            maxSuggestions={8}
+            includeHistory={true}
+          />
+        )
+      }
+    </div>
+  </div>
+
+  <!-- Advanced Filters -->
+  {
+    showAdvancedFilters && (
+      <AdvancedSearchFilters onFiltersChange="handleFiltersChange" />
+    )
+  }
+
+  <!-- Sidebar with Saved Searches -->
+  <div class="flex gap-6">
+    <!-- Main Content -->
+    <div class="flex-1">
+      <!-- Search Results -->
+      {
+        showResults && (
+          <div id="search-results-container">
+            <SearchResults
+              results={[]}
+              total={0}
+              page={1}
+              totalPages={0}
+              query=""
+              loading={false}
+            />
+          </div>
+        )
+      }
+    </div>
+
+    <!-- Sidebar -->
+    {
+      showSavedSearches && (
+        <div class="w-80 space-y-6">
+          <SavedSearches showPublic={false} limit={5} />
+          <SavedSearches showPublic={true} limit={5} />
+        </div>
+      )
+    }
+  </div>
+
+  <!-- Search Results -->
+  {
+    showResults && (
+      <div id="search-results-container">
+        <SearchResults
+          results={[]}
+          total={0}
+          page={1}
+          totalPages={0}
+          query=""
+          loading={false}
+        />
+      </div>
+    )
+  }
+</div>
+
+<script>
+  // Extend Window interface for our custom functions
+  declare global {
+    interface Window {
+      handleFiltersChange?: (filters: any) => void;
+    }
+  }
+
+  interface SearchResult {
+    id: string;
+    title: string;
+    type: "movie" | "tv" | "book" | "anime" | "manga";
+    year?: number;
+    poster?: string;
+    description?: string;
+    rating?: number;
+    source: "tmdb" | "openlibrary" | "jikan";
+  }
+
+  interface SearchResponse {
+    results: SearchResult[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }
+
+  class UniversalSearch {
+    private searchInput: HTMLInputElement;
+    private clearButton: HTMLButtonElement;
+    private saveButton: HTMLButtonElement;
+    private resultsContainer: HTMLElement;
+    private currentQuery: string = "";
+    private currentPage: number = 1;
+    private currentFilters: any = {};
+    private searchTimeout: number | null = null;
+    private abortController: AbortController | null = null;
+
+    constructor() {
+      this.searchInput = document.getElementById(
+        "search-input"
+      ) as HTMLInputElement;
+      this.clearButton = document.getElementById(
+        "clear-search"
+      ) as HTMLButtonElement;
+      this.saveButton = document.getElementById(
+        "save-current-search"
+      ) as HTMLButtonElement;
+      this.resultsContainer = document.getElementById(
+        "search-results-container"
+      ) as HTMLElement;
+
+      this.init();
+    }
+
+    private init() {
+      // Search input events
+      this.searchInput.addEventListener(
+        "input",
+        this.handleSearchInput.bind(this)
+      );
+      this.searchInput.addEventListener(
+        "keydown",
+        this.handleKeyDown.bind(this)
+      );
+
+      // Button events
+      this.clearButton.addEventListener("click", this.clearSearch.bind(this));
+      this.saveButton.addEventListener(
+        "click",
+        this.saveCurrentSearch.bind(this)
+      );
+
+      // Filter and pagination events
+      document.addEventListener(
+        "filterChange",
+        this.handleFilterChange.bind(this)
+      );
+      document.addEventListener(
+        "filtersChanged",
+        this.handleFiltersChanged.bind(this)
+      );
+      document.addEventListener("pageChange", this.handlePageChange.bind(this));
+      document.addEventListener(
+        "useSavedSearch",
+        this.handleUseSavedSearch.bind(this)
+      );
+
+      // Initialize with any existing query
+      if (this.searchInput.value.trim()) {
+        this.currentQuery = this.searchInput.value.trim();
+        this.performSearch();
+      }
+    }
+
+    private handleSearchInput(e: Event) {
+      const query = (e.target as HTMLInputElement).value.trim();
+
+      // Show/hide buttons
+      if (query) {
+        this.clearButton.classList.remove("hidden");
+        this.saveButton.classList.remove("hidden");
+      } else {
+        this.clearButton.classList.add("hidden");
+        this.saveButton.classList.add("hidden");
+      }
+
+      // Debounce search
+      if (this.searchTimeout) {
+        clearTimeout(this.searchTimeout);
+      }
+
+      this.searchTimeout = window.setTimeout(() => {
+        if (query !== this.currentQuery) {
+          this.currentQuery = query;
+          this.currentPage = 1; // Reset to first page on new search
+          this.performSearch();
+        }
+      }, 300); // 300ms debounce
+    }
+
+    private handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (this.searchTimeout) {
+          clearTimeout(this.searchTimeout);
+        }
+        this.currentQuery = this.searchInput.value.trim();
+        this.currentPage = 1;
+        this.performSearch();
+      }
+    }
+
+    private handleFilterChange(e: CustomEvent) {
+      // Legacy filter change for basic media type filter
+      this.currentFilters.mediaType = e.detail.type;
+      this.currentPage = 1;
+      this.performSearch();
+    }
+
+    private handleFiltersChanged(e: CustomEvent) {
+      // Advanced filters change
+      this.currentFilters = { ...e.detail };
+      this.currentPage = 1;
+      this.performSearch();
+    }
+
+    private handleUseSavedSearch(e: CustomEvent) {
+      const { query, filters } = e.detail;
+
+      // Update search input
+      this.searchInput.value = query;
+      this.currentQuery = query;
+      this.currentFilters = filters || {};
+      this.currentPage = 1;
+
+      // Show buttons
+      this.clearButton.classList.remove("hidden");
+      this.saveButton.classList.remove("hidden");
+
+      // Apply the saved search
+      this.performSearch();
+
+      // Update filters UI if available
+      this.updateFiltersUI(filters);
+    }
+
+    private handlePageChange(e: CustomEvent) {
+      this.currentPage = e.detail.page;
+      this.performSearch();
+    }
+
+    private clearSearch() {
+      this.searchInput.value = "";
+      this.currentQuery = "";
+      this.currentFilters = {};
+      this.currentPage = 1;
+      this.clearButton.classList.add("hidden");
+      this.saveButton.classList.add("hidden");
+      this.updateResults(
+        { results: [], total: 0, page: 1, totalPages: 0 },
+        false
+      );
+
+      // Clear filters UI
+      this.clearFiltersUI();
+    }
+
+    private async saveCurrentSearch() {
+      if (!this.currentQuery.trim()) {
+        alert("Please enter a search query first");
+        return;
+      }
+
+      const name = prompt("Enter a name for this saved search:");
+      if (!name) return;
+
+      try {
+        const response = await fetch("/api/search/saved", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Bearer " + (localStorage.getItem("auth_token") || ""),
+          },
+          body: JSON.stringify({
+            name,
+            query: this.currentQuery,
+            filters: this.currentFilters,
+            isPublic: false,
+          }),
+        });
+
+        if (response.ok) {
+          this.showNotification("Search saved successfully!");
+
+          // Refresh saved searches if component exists
+          const refreshEvent = new CustomEvent("refreshSavedSearches");
+          document.dispatchEvent(refreshEvent);
+        } else {
+          const error = await response.json();
+          alert("Failed to save search: " + error.error?.message);
+        }
+      } catch (error) {
+        console.error("Error saving search:", error);
+        alert("Failed to save search. Please try again.");
+      }
+    }
+
+    private async performSearch() {
+      if (!this.currentQuery || this.currentQuery.length < 2) {
+        this.updateResults(
+          { results: [], total: 0, page: 1, totalPages: 0 },
+          false
+        );
+        return;
+      }
+
+      // Cancel previous request
+      if (this.abortController) {
+        this.abortController.abort();
+      }
+      this.abortController = new AbortController();
+
+      // Show loading state
+      this.updateResults(
+        { results: [], total: 0, page: this.currentPage, totalPages: 0 },
+        true
+      );
+
+      try {
+        const params = new URLSearchParams({
+          q: this.currentQuery,
+          page: this.currentPage.toString(),
+        });
+
+        // Add filters to params
+        Object.entries(this.currentFilters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            if (Array.isArray(value)) {
+              if (value.length > 0) {
+                params.set(key, value.join(","));
+              }
+            } else {
+              params.set(key, value.toString());
+            }
+          }
+        });
+
+        console.log("Performing search with params:", params.toString());
+
+        // Get authentication header
+        const authHeader = await window.getAuthHeader?.() || {};
+        
+        const response = await fetch(`/api/search?${params}`, {
+          signal: this.abortController.signal,
+          headers: {
+            ...authHeader
+          },
+        });
+
+        console.log("Search response status:", response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Search API error:", errorText);
+          throw new Error(`Search failed: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log("Search result:", result);
+
+        const data: SearchResponse = result.success ? result.data : result;
+        this.updateResults(data, false);
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return; // Request was cancelled, ignore
+        }
+
+        console.error("Search error:", error);
+        this.updateResults(
+          { results: [], total: 0, page: 1, totalPages: 0 },
+          false
+        );
+        this.showError("Search failed. Please try again.");
+      }
+    }
+
+    private updateResults(data: SearchResponse, loading: boolean) {
+      if (!this.resultsContainer) return;
+
+      // Create new SearchResults component HTML
+      const resultsHTML = this.createSearchResultsHTML(data, loading);
+      this.resultsContainer.innerHTML = resultsHTML;
+
+      // Re-initialize event listeners for the new content
+      this.initializeResultsEventListeners();
+    }
+
+    private createSearchResultsHTML(
+      data: SearchResponse,
+      loading: boolean
+    ): string {
+      const { results, total, page, totalPages } = data;
+
+      let html = '<div class="search-results">';
+
+      // Stats and filters
+      html += `
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div class="search-stats">
+            ${
+              loading
+                ? '<p class="text-gray-600">Searching...</p>'
+                : total > 0
+                  ? `<p class="text-gray-600">Found <span class="font-semibold">${total}</span> results for "<span class="font-semibold">${this.currentQuery}</span>"</p>`
+                  : this.currentQuery
+                    ? `<p class="text-gray-600">No results found for "<span class="font-semibold">${this.currentQuery}</span>"</p>`
+                    : '<p class="text-gray-600">Enter a search term to find movies, TV shows, books, anime, and manga</p>'
+            }
+          </div>
+          <div class="flex items-center gap-2">
+            <label for="media-type-filter" class="text-sm font-medium text-gray-700">Filter:</label>
+            <select id="media-type-filter" class="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option value="all">All Media</option>
+              <option value="movie">Movies</option>
+              <option value="tv">TV Shows</option>
+              <option value="book">Books</option>
+              <option value="anime">Anime</option>
+              <option value="manga">Manga</option>
+            </select>
+          </div>
+        </div>
+      `;
+
+      // Loading state
+      if (loading) {
+        html += `
+          <div class="flex justify-center items-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        `;
+      }
+      // Results
+      else if (results.length > 0) {
+        html += '<div class="results-grid space-y-4 mb-8">';
+        results.forEach((result) => {
+          html += this.createMediaCardHTML(result);
+        });
+        html += "</div>";
+
+        // Pagination
+        if (totalPages > 1) {
+          html += this.createPaginationHTML(page, totalPages);
+        }
+      }
+      // Empty state
+      else if (this.currentQuery) {
+        html += `
+          <div class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No results found</h3>
+            <p class="mt-1 text-sm text-gray-500">Try adjusting your search terms or filters.</p>
+          </div>
+        `;
+      }
+
+      html += "</div>";
+      return html;
+    }
+
+    private createMediaCardHTML(result: SearchResult): string {
+      const typeColors = {
+        movie: "bg-blue-100 text-blue-800",
+        tv: "bg-purple-100 text-purple-800",
+        book: "bg-green-100 text-green-800",
+        anime: "bg-orange-100 text-orange-800",
+        manga: "bg-pink-100 text-pink-800",
+      };
+
+      const typeLabels = {
+        movie: "Movie",
+        tv: "TV Show",
+        book: "Book",
+        anime: "Anime",
+        manga: "Manga",
+      };
+
+      return `
+        <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200">
+          <div class="flex">
+            <div class="w-24 h-36 flex-shrink-0 bg-gray-200">
+              ${
+                result.poster
+                  ? `<img src="${result.poster}" alt="${result.title} poster" class="w-full h-full object-cover" loading="lazy" />`
+                  : `<div class="w-full h-full flex items-center justify-center text-gray-400">
+                  <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                  </svg>
+                </div>`
+              }
+            </div>
+            <div class="flex-1 p-4">
+              <div class="flex items-start justify-between mb-2">
+                <div class="flex-1">
+                  <h3 class="font-semibold text-gray-900 line-clamp-2 mb-1">${result.title}</h3>
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${typeColors[result.type]}">
+                      ${typeLabels[result.type]}
+                    </span>
+                    ${result.year ? `<span class="text-sm text-gray-500">${result.year}</span>` : ""}
+                    ${
+                      result.rating
+                        ? `
+                      <div class="flex items-center gap-1">
+                        <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <span class="text-sm text-gray-600">${result.rating.toFixed(1)}</span>
+                      </div>
+                    `
+                        : ""
+                    }
+                  </div>
+                </div>
+                <button 
+                  class="add-to-list-btn ml-2 px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors duration-200"
+                  data-media-id="${result.id}"
+                  data-media-title="${result.title}"
+                  data-media-type="${result.type}"
+                  data-media-poster="${result.poster || ""}"
+                  data-media-year="${result.year || ""}"
+                  data-media-source="${result.source}"
+                >
+                  Add
+                </button>
+              </div>
+              ${result.description ? `<p class="text-sm text-gray-600 line-clamp-3">${result.description}</p>` : ""}
+              <div class="mt-2 text-xs text-gray-400 capitalize">via ${result.source}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    private createPaginationHTML(page: number, totalPages: number): string {
+      let html = `
+        <div class="flex justify-center items-center gap-2 mt-8">
+          <button 
+            id="prev-page"
+            class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 ${page <= 1 ? "opacity-50 cursor-not-allowed" : ""}"
+            ${page <= 1 ? "disabled" : ""}
+          >
+            Previous
+          </button>
+          <div class="flex items-center gap-1">
+      `;
+
+      // Page numbers
+      const maxVisiblePages = 5;
+      for (let i = 1; i <= Math.min(maxVisiblePages, totalPages); i++) {
+        const isActive = i === page;
+        html += `
+          <button 
+            class="px-3 py-2 text-sm font-medium rounded-md page-btn ${
+              isActive
+                ? "bg-blue-600 text-white"
+                : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+            }"
+            data-page="${i}"
+          >
+            ${i}
+          </button>
+        `;
+      }
+
+      if (totalPages > maxVisiblePages) {
+        html += `
+          <span class="px-2 text-gray-500">...</span>
+          <button 
+            class="px-3 py-2 text-sm font-medium rounded-md page-btn ${
+              totalPages === page
+                ? "bg-blue-600 text-white"
+                : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+            }"
+            data-page="${totalPages}"
+          >
+            ${totalPages}
+          </button>
+        `;
+      }
+
+      html += `
+          </div>
+          <button 
+            id="next-page"
+            class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 ${page >= totalPages ? "opacity-50 cursor-not-allowed" : ""}"
+            ${page >= totalPages ? "disabled" : ""}
+          >
+            Next
+          </button>
+        </div>
+      `;
+
+      return html;
+    }
+
+    private initializeResultsEventListeners() {
+      // Filter change
+      const filterSelect = document.getElementById(
+        "media-type-filter"
+      ) as HTMLSelectElement;
+      if (filterSelect) {
+        filterSelect.addEventListener("change", (e) => {
+          const selectedType = (e.target as HTMLSelectElement).value;
+          const event = new CustomEvent("filterChange", {
+            detail: { type: selectedType },
+            bubbles: true,
+          });
+          filterSelect.dispatchEvent(event);
+        });
+      }
+
+      // Add to list buttons
+      document.querySelectorAll(".add-to-list-btn").forEach((button) => {
+        button.addEventListener("click", (e) => {
+          const btn = e.target as HTMLButtonElement;
+          const mediaData = {
+            id: btn.dataset.mediaId,
+            title: btn.dataset.mediaTitle,
+            type: btn.dataset.mediaType,
+            poster: btn.dataset.mediaPoster,
+            year: btn.dataset.mediaYear,
+            source: btn.dataset.mediaSource,
+          };
+
+          // Visual feedback
+          btn.textContent = "Added!";
+          btn.disabled = true;
+          btn.classList.remove("bg-blue-600", "hover:bg-blue-700");
+          btn.classList.add("bg-green-600");
+
+          setTimeout(() => {
+            btn.textContent = "Add";
+            btn.disabled = false;
+            btn.classList.remove("bg-green-600");
+            btn.classList.add("bg-blue-600", "hover:bg-blue-700");
+          }, 2000);
+
+          this.showNotification(`Added "${mediaData.title}" to your list!`);
+        });
+      });
+    }
+
+    private showError(message: string) {
+      this.showNotification(message, "error");
+    }
+
+    private updateFiltersUI(filters: any) {
+      // Update advanced filters UI if available
+      Object.entries(filters).forEach(([key, value]) => {
+        const element =
+          document.getElementById(key) ||
+          document.querySelector(`[name="${key}"]`);
+        if (element) {
+          if (element.tagName === "SELECT") {
+            (element as HTMLSelectElement).value = value as string;
+          } else if (element instanceof HTMLInputElement) {
+            if (element.type === "checkbox") {
+              element.checked = Boolean(value);
+            } else if (element.type === "number" || element.type === "text") {
+              element.value = value as string;
+            }
+          }
+        }
+      });
+    }
+
+    private clearFiltersUI() {
+      // Clear all filter inputs
+      const filterInputs = document.querySelectorAll(
+        ".advanced-search-filters input, .advanced-search-filters select"
+      );
+      filterInputs.forEach((input) => {
+        if (input.tagName === "SELECT") {
+          (input as HTMLSelectElement).selectedIndex = 0;
+        } else if (input instanceof HTMLInputElement) {
+          if (input.type === "checkbox") {
+            input.checked = false;
+          } else {
+            input.value = "";
+          }
+        }
+      });
+    }
+
+    private showNotification(
+      message: string,
+      type: "success" | "error" = "success"
+    ) {
+      const notification = document.createElement("div");
+      const bgColor = type === "success" ? "bg-green-500" : "bg-red-500";
+      notification.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 rounded-md shadow-lg z-50 transition-opacity duration-300`;
+      notification.textContent = message;
+
+      document.body.appendChild(notification);
+
+      setTimeout(() => {
+        notification.style.opacity = "0";
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 300);
+      }, 3000);
+    }
+  }
+
+  // Global function for filter changes (called by AdvancedSearchFilters)
+  window.handleFiltersChange = function (filters: any) {
+    const event = new CustomEvent("filtersChanged", {
+      detail: filters,
+      bubbles: true,
+    });
+    document.dispatchEvent(event);
+  };
+
+  // Initialize when DOM is loaded
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => new UniversalSearch());
+  } else {
+    new UniversalSearch();
+  }
+</script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+</style>

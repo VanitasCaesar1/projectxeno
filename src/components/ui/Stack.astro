@@ -1,0 +1,58 @@
+---
+interface Props {
+  direction?: 'row' | 'column';
+  gap?: 'sm' | 'md' | 'lg' | 'xl';
+  align?: 'start' | 'center' | 'end' | 'stretch';
+  justify?: 'start' | 'center' | 'end' | 'between' | 'around' | 'evenly';
+  wrap?: boolean;
+  responsive?: boolean;
+  class?: string;
+}
+
+const { 
+  direction = 'column', 
+  gap = 'md', 
+  align = 'stretch',
+  justify = 'start',
+  wrap = false,
+  responsive = false,
+  class: className = ''
+} = Astro.props;
+
+const directionClasses = {
+  row: 'flex-row',
+  column: 'flex-col'
+};
+
+const gapClasses = {
+  sm: 'gap-2',
+  md: 'gap-4',
+  lg: 'gap-6',
+  xl: 'gap-8'
+};
+
+const alignClasses = {
+  start: 'items-start',
+  center: 'items-center',
+  end: 'items-end',
+  stretch: 'items-stretch'
+};
+
+const justifyClasses = {
+  start: 'justify-start',
+  center: 'justify-center',
+  end: 'justify-end',
+  between: 'justify-between',
+  around: 'justify-around',
+  evenly: 'justify-evenly'
+};
+
+const wrapClass = wrap ? 'flex-wrap' : '';
+const responsiveClass = responsive ? 'flex-col sm:flex-row' : directionClasses[direction];
+
+const classes = `flex ${responsiveClass} ${gapClasses[gap]} ${alignClasses[align]} ${justifyClasses[justify]} ${wrapClass} ${className}`;
+---
+
+<div class={classes}>
+  <slot />
+</div>

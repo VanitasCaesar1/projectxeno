@@ -1,0 +1,68 @@
+---
+interface Props {
+  type?: 'text' | 'email' | 'password' | 'search' | 'number' | 'tel' | 'url';
+  placeholder?: string;
+  value?: string;
+  name?: string;
+  id?: string;
+  required?: boolean;
+  disabled?: boolean;
+  error?: string;
+  label?: string;
+  class?: string;
+  size?: 'sm' | 'md' | 'lg';
+}
+
+const { 
+  type = 'text',
+  placeholder,
+  value,
+  name,
+  id,
+  required = false,
+  disabled = false,
+  error,
+  label,
+  class: className = '',
+  size = 'md'
+} = Astro.props;
+
+const baseClasses = 'w-full border rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-lime-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed';
+
+const sizes = {
+  sm: 'px-3 py-1.5 text-sm',
+  md: 'px-4 py-2 text-base',
+  lg: 'px-5 py-3 text-lg'
+};
+
+const errorClasses = error 
+  ? 'border-red-300 focus:ring-red-500 dark:border-red-600' 
+  : 'border-gray-300 dark:border-gray-600';
+
+const classes = `${baseClasses} ${sizes[size]} ${errorClasses} ${className} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`;
+---
+
+<div class="space-y-1">
+  {label && (
+    <label for={id} class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      {label}
+      {required && <span class="text-red-500 ml-1">*</span>}
+    </label>
+  )}
+  
+  <input
+    type={type}
+    placeholder={placeholder}
+    value={value}
+    name={name}
+    id={id}
+    required={required}
+    disabled={disabled}
+    class={classes}
+    {...Astro.props}
+  />
+  
+  {error && (
+    <p class="text-sm text-red-600 dark:text-red-400">{error}</p>
+  )}
+</div>

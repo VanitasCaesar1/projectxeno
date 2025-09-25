@@ -1,0 +1,613 @@
+---
+/**
+ * Enhanced Category Search Component
+ * Integrates search input, filters, suggestions, and results for category pages
+ */
+
+import CategorySearchInput from './CategorySearchInput.astro';
+import CategorySearchFilters from './CategorySearchFilters.astro';
+import SearchEmptyState from './SearchEmptyState.astro';
+import MediaCard from './MediaCard.astro';
+import LoadingSpinner from './ui/LoadingSpinner.astro';
+
+interface Props {
+  mediaType: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  initialQuery?: string;
+  initialFilters?: {
+    genres?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+    ratingFrom?: number;
+    ratingTo?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  };
+  showFilters?: boolean;
+  showSuggestions?: boolean;
+  compact?: boolean;
+  class?: string;
+}
+
+const { 
+  mediaType,
+  initialQuery = '',
+  initialFilters = {},
+  showFilters = true,
+  showSuggestions = true,
+  compact = false,
+  class: className = ''
+} = Astro.props;
+
+const mediaTypeLabels = {
+  movie: 'Movies',
+  tv: 'TV Shows',
+  book: 'Books',
+  anime: 'Anime',
+  manga: 'Manga'
+};
+
+const searchId = `enhanced-search-${mediaType}`;
+---
+
+<div class={`enhanced-category-search ${className}`} data-media-type={mediaType} id={searchId}>
+  <!-- Search Header -->
+  <div class="search-header mb-6">
+    <div class="flex flex-col gap-4">
+      <!-- Search Input -->
+      <div class="search-input-section">
+        <CategorySearchInput 
+          mediaType={mediaType}
+          initialQuery={initialQuery}
+          showSuggestions={showSuggestions}
+          showClearButton={true}
+          size={compact ? 'md' : 'lg'}
+          class="w-full"
+        />
+      </div>
+
+      <!-- Search Filters -->
+      {showFilters && (
+        <div class="search-filters-section">
+          <CategorySearchFilters 
+            mediaType={mediaType}
+            initialFilters={initialFilters}
+            compact={compact}
+            showGenres={true}
+            showYearRange={true}
+            showRating={true}
+            showSort={true}
+          />
+        </div>
+      )}
+    </div>
+  </div>
+
+  <!-- Search Results Area -->
+  <div class="search-results-area">
+    <!-- Loading State -->
+    <div class="search-loading hidden">
+      <div class="flex flex-col items-center justify-center py-12">
+        <LoadingSpinner size="lg" />
+        <p class="mt-4 text-gray-600 dark:text-gray-400">Searching {mediaTypeLabels[mediaType].toLowerCase()}...</p>
+      </div>
+    </div>
+
+    <!-- Results Header -->
+    <div class="results-header hidden mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="results-info">
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Search Results
+          </h2>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <span class="results-count">0</span> results found
+            <span class="results-query hidden"> for "<span class="query-text"></span>"</span>
+            <span class="results-filters hidden"> with filters applied</span>
+          </p>
+        </div>
+        
+        <div class="results-actions flex gap-2">
+          <button 
+            type="button"
+            id="clear-search-results"
+            class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Clear Search
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Grid -->
+    <div class="results-grid hidden">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+        <!-- Results will be populated here -->
+      </div>
+      
+      <!-- Load More / Pagination -->
+      <div class="results-pagination mt-8">
+        <div class="flex justify-center">
+          <button 
+            type="button"
+            id="load-more-results"
+            class="hidden px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            <span class="load-more-text">Load More Results</span>
+            <div class="load-more-spinner hidden ml-2">
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            </div>
+          </button>
+        </div>
+        
+        <div class="pagination-info text-center mt-4 text-sm text-gray-600 dark:text-gray-400 hidden">
+          Showing <span class="current-count">0</span> of <span class="total-count">0</span> results
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="search-empty">
+      <SearchEmptyState 
+        mediaType={mediaType}
+        showSuggestions={true}
+        onClearFilters="clearCategoryFilters"
+        onClearSearch="clearCategorySearch"
+      />
+    </div>
+
+    <!-- Error State -->
+    <div class="search-error hidden">
+      <div class="text-center py-12">
+        <div class="text-red-400 mb-4">
+          <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Search Error</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+          <span class="error-message">Something went wrong while searching.</span>
+        </p>
+        <button 
+          type="button"
+          id="retry-search"
+          class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { getSearchState } from '../lib/searchState';
+  import type { SearchState, SearchResult } from '../lib/searchState';
+
+  class EnhancedCategorySearch {
+    private container: HTMLElement;
+    private mediaType: string;
+    private searchState: any; // SearchStateManager
+    private currentResults: SearchResult[] = [];
+    private currentPage: number = 1;
+    private isLoadingMore: boolean = false;
+    private unsubscribe: (() => void) | null = null;
+
+    // DOM elements
+    private loadingElement: HTMLElement;
+    private resultsHeaderElement: HTMLElement;
+    private resultsGridElement: HTMLElement;
+    private emptyStateElement: HTMLElement;
+    private errorStateElement: HTMLElement;
+    private loadMoreButton: HTMLButtonElement;
+    private clearSearchButton: HTMLButtonElement;
+    private retryButton: HTMLButtonElement;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.mediaType = container.dataset.mediaType || '';
+      
+      // Get DOM elements
+      this.loadingElement = container.querySelector('.search-loading') as HTMLElement;
+      this.resultsHeaderElement = container.querySelector('.results-header') as HTMLElement;
+      this.resultsGridElement = container.querySelector('.results-grid') as HTMLElement;
+      this.emptyStateElement = container.querySelector('.search-empty') as HTMLElement;
+      this.errorStateElement = container.querySelector('.search-error') as HTMLElement;
+      this.loadMoreButton = container.querySelector('#load-more-results') as HTMLButtonElement;
+      this.clearSearchButton = container.querySelector('#clear-search-results') as HTMLButtonElement;
+      this.retryButton = container.querySelector('#retry-search') as HTMLButtonElement;
+      
+      // Initialize search state
+      this.searchState = getSearchState(this.mediaType);
+      
+      this.init();
+    }
+
+    private init() {
+      // Subscribe to search state changes
+      this.unsubscribe = this.searchState.subscribe(this.handleStateChange.bind(this));
+      
+      // Setup event listeners
+      this.setupEventListeners();
+      
+      // Initialize from URL if needed
+      this.initializeFromURL();
+      
+      // Set initial state
+      const currentState = this.searchState.getState();
+      this.handleStateChange(currentState);
+    }
+
+    private setupEventListeners() {
+      // Filter change events
+      this.container.addEventListener('categoryFiltersChanged', this.handleFiltersChanged.bind(this));
+      
+      // Button events
+      this.loadMoreButton?.addEventListener('click', this.handleLoadMore.bind(this));
+      this.clearSearchButton?.addEventListener('click', this.handleClearSearch.bind(this));
+      this.retryButton?.addEventListener('click', this.handleRetrySearch.bind(this));
+      
+      // Global clear functions
+      (window as any).clearCategoryFilters = this.clearFilters.bind(this);
+      (window as any).clearCategorySearch = this.clearSearch.bind(this);
+      
+      // Browser navigation
+      window.addEventListener('popstate', this.handlePopState.bind(this));
+    }
+
+    private initializeFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('q') || urlParams.has('mediaType') || urlParams.has('genres')) {
+        this.searchState.fromURLParams(urlParams);
+      }
+    }
+
+    private handleStateChange(state: SearchState) {
+      // Update URL
+      this.searchState.updateURL(true);
+      
+      // Update UI based on state
+      if (state.loading && state.page === 1) {
+        this.showLoading();
+      } else if (state.error) {
+        this.showError(state.error);
+      } else if (state.query && state.results.length === 0) {
+        this.showEmpty(state.query, this.searchState.hasFilters());
+      } else if (state.results.length > 0) {
+        this.showResults(state);
+      } else {
+        this.showEmpty('', false);
+      }
+      
+      // Update load more button
+      this.updateLoadMoreButton(state);
+    }
+
+    private handleFiltersChanged(e: CustomEvent) {
+      const { filters } = e.detail;
+      this.searchState.setFilters(filters);
+    }
+
+    private async handleLoadMore() {
+      if (this.isLoadingMore) return;
+      
+      this.isLoadingMore = true;
+      this.updateLoadMoreButton(this.searchState.getState(), true);
+      
+      const nextPage = this.currentPage + 1;
+      this.searchState.setPage(nextPage);
+    }
+
+    private handleClearSearch() {
+      this.clearSearch();
+    }
+
+    private handleRetrySearch() {
+      const state = this.searchState.getState();
+      if (state.query) {
+        this.searchState.setQuery(state.query, false);
+      }
+    }
+
+    private handlePopState() {
+      const urlParams = new URLSearchParams(window.location.search);
+      this.searchState.fromURLParams(urlParams);
+    }
+
+    private showLoading() {
+      this.hideAllStates();
+      this.loadingElement.classList.remove('hidden');
+    }
+
+    private showResults(state: SearchState) {
+      this.hideAllStates();
+      
+      // Update results
+      if (state.page === 1) {
+        this.currentResults = [...state.results];
+        this.renderResults();
+      } else {
+        // Append results for pagination
+        this.currentResults = [...this.currentResults, ...state.results];
+        this.appendResults(state.results);
+      }
+      
+      this.currentPage = state.page;
+      this.isLoadingMore = false;
+      
+      // Show results UI
+      this.resultsHeaderElement.classList.remove('hidden');
+      this.resultsGridElement.classList.remove('hidden');
+      
+      // Update results info
+      this.updateResultsInfo(state);
+    }
+
+    private showEmpty(query: string, hasFilters: boolean) {
+      this.hideAllStates();
+      
+      // Update empty state with current query and filter status
+      const emptyState = this.emptyStateElement.querySelector('.search-empty-state') as HTMLElement;
+      if (emptyState) {
+        emptyState.dataset.query = query;
+        emptyState.dataset.hasFilters = hasFilters.toString();
+        
+        // Update text content
+        const mainMessage = emptyState.querySelector('h3');
+        const description = emptyState.querySelector('p');
+        
+        if (mainMessage && description) {
+          if (query) {
+            mainMessage.textContent = `No ${this.getMediaLabel()} found`;
+            description.innerHTML = `We couldn't find any ${this.getMediaLabel()} matching <span class="font-medium text-gray-900 dark:text-gray-100">"${query}"</span>${hasFilters ? ' with your current filters' : ''}.`;
+          } else {
+            mainMessage.textContent = `Start searching for ${this.getMediaLabel()}`;
+            description.textContent = `Enter a search term above to discover ${this.getMediaLabel()}.`;
+          }
+        }
+      }
+      
+      this.emptyStateElement.classList.remove('hidden');
+    }
+
+    private showError(error: string) {
+      this.hideAllStates();
+      
+      const errorMessage = this.errorStateElement.querySelector('.error-message');
+      if (errorMessage) {
+        errorMessage.textContent = error;
+      }
+      
+      this.errorStateElement.classList.remove('hidden');
+    }
+
+    private hideAllStates() {
+      this.loadingElement.classList.add('hidden');
+      this.resultsHeaderElement.classList.add('hidden');
+      this.resultsGridElement.classList.add('hidden');
+      this.emptyStateElement.classList.add('hidden');
+      this.errorStateElement.classList.add('hidden');
+    }
+
+    private renderResults() {
+      const grid = this.resultsGridElement.querySelector('.grid');
+      if (!grid) return;
+      
+      grid.innerHTML = '';
+      this.currentResults.forEach(result => {
+        const cardElement = this.createMediaCardElement(result);
+        grid.appendChild(cardElement);
+      });
+    }
+
+    private appendResults(newResults: SearchResult[]) {
+      const grid = this.resultsGridElement.querySelector('.grid');
+      if (!grid) return;
+      
+      newResults.forEach(result => {
+        const cardElement = this.createMediaCardElement(result);
+        grid.appendChild(cardElement);
+      });
+    }
+
+    private createMediaCardElement(result: SearchResult): HTMLElement {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'media-card-container';
+      
+      // Create media card HTML (simplified version)
+      cardDiv.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200">
+          <div class="aspect-w-2 aspect-h-3 bg-gray-200 dark:bg-gray-700">
+            ${result.poster ? 
+              `<img src="${result.poster}" alt="${result.title}" class="w-full h-full object-cover" loading="lazy" />` :
+              `<div class="w-full h-full flex items-center justify-center text-gray-400">
+                <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+                </svg>
+              </div>`
+            }
+          </div>
+          <div class="p-4">
+            <h3 class="font-semibold text-gray-900 dark:text-gray-100 line-clamp-2 mb-2">${result.title}</h3>
+            <div class="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+              <span class="capitalize">${result.type}</span>
+              ${result.year ? `<span>${result.year}</span>` : ''}
+            </div>
+            ${result.rating ? `
+              <div class="flex items-center gap-1 mb-2">
+                <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span class="text-sm">${result.rating.toFixed(1)}</span>
+              </div>
+            ` : ''}
+            ${result.description ? `<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">${result.description}</p>` : ''}
+            <div class="mt-3 flex justify-between items-center">
+              <span class="text-xs text-gray-400 capitalize">via ${result.source}</span>
+              <button class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">
+                Add to List
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      return cardDiv;
+    }
+
+    private updateResultsInfo(state: SearchState) {
+      const countElement = this.container.querySelector('.results-count');
+      const queryElement = this.container.querySelector('.results-query');
+      const queryTextElement = this.container.querySelector('.query-text');
+      const filtersElement = this.container.querySelector('.results-filters');
+      
+      if (countElement) {
+        countElement.textContent = state.total.toString();
+      }
+      
+      if (state.query && queryElement && queryTextElement) {
+        queryTextElement.textContent = state.query;
+        queryElement.classList.remove('hidden');
+      } else if (queryElement) {
+        queryElement.classList.add('hidden');
+      }
+      
+      if (this.searchState.hasFilters() && filtersElement) {
+        filtersElement.classList.remove('hidden');
+      } else if (filtersElement) {
+        filtersElement.classList.add('hidden');
+      }
+      
+      // Update pagination info
+      const currentCountElement = this.container.querySelector('.current-count');
+      const totalCountElement = this.container.querySelector('.total-count');
+      const paginationInfo = this.container.querySelector('.pagination-info');
+      
+      if (currentCountElement && totalCountElement && paginationInfo) {
+        currentCountElement.textContent = this.currentResults.length.toString();
+        totalCountElement.textContent = state.total.toString();
+        
+        if (state.total > this.currentResults.length) {
+          paginationInfo.classList.remove('hidden');
+        } else {
+          paginationInfo.classList.add('hidden');
+        }
+      }
+    }
+
+    private updateLoadMoreButton(state: SearchState, loading: boolean = false) {
+      if (!this.loadMoreButton) return;
+      
+      const hasMore = state.totalPages > state.page;
+      const showButton = hasMore && state.results.length > 0;
+      
+      this.loadMoreButton.classList.toggle('hidden', !showButton);
+      this.loadMoreButton.disabled = loading;
+      
+      const loadMoreText = this.loadMoreButton.querySelector('.load-more-text');
+      const loadMoreSpinner = this.loadMoreButton.querySelector('.load-more-spinner');
+      
+      if (loadMoreText && loadMoreSpinner) {
+        if (loading) {
+          loadMoreText.textContent = 'Loading...';
+          loadMoreSpinner.classList.remove('hidden');
+        } else {
+          loadMoreText.textContent = 'Load More Results';
+          loadMoreSpinner.classList.add('hidden');
+        }
+      }
+    }
+
+    private getMediaLabel(): string {
+      const labels = {
+        movie: 'movies',
+        tv: 'TV shows',
+        book: 'books',
+        anime: 'anime',
+        manga: 'manga'
+      };
+      return labels[this.mediaType as keyof typeof labels] || 'content';
+    }
+
+    // Public methods
+    public clearSearch() {
+      this.searchState.clearSearch();
+    }
+
+    public clearFilters() {
+      this.searchState.clearFilters();
+    }
+
+    public getSearchState() {
+      return this.searchState;
+    }
+
+    public destroy() {
+      if (this.unsubscribe) {
+        this.unsubscribe();
+      }
+    }
+  }
+
+  // Initialize all enhanced category search components
+  function initializeEnhancedCategorySearch() {
+    const containers = document.querySelectorAll('.enhanced-category-search');
+    containers.forEach(container => {
+      new EnhancedCategorySearch(container as HTMLElement);
+    });
+  }
+
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeEnhancedCategorySearch);
+  } else {
+    initializeEnhancedCategorySearch();
+  }
+
+  // Export for manual initialization
+  (window as any).EnhancedCategorySearch = EnhancedCategorySearch;
+  (window as any).initializeEnhancedCategorySearch = initializeEnhancedCategorySearch;
+</script>
+
+<style>
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .aspect-w-2 {
+    position: relative;
+    padding-bottom: 150%; /* 2:3 aspect ratio */
+  }
+
+  .aspect-w-2 > * {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+  }
+
+  @media (max-width: 640px) {
+    .enhanced-category-search .grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .enhanced-category-search .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

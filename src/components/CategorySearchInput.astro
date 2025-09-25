@@ -1,0 +1,410 @@
+---
+/**
+ * Category-specific search input component
+ * Integrates with search state management and provides enhanced UX
+ */
+
+import CategorySearchSuggestions from './CategorySearchSuggestions.astro';
+
+interface Props {
+  mediaType: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  placeholder?: string;
+  initialQuery?: string;
+  showSuggestions?: boolean;
+  showClearButton?: boolean;
+  showSearchButton?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+  class?: string;
+}
+
+const { 
+  mediaType,
+  placeholder,
+  initialQuery = '',
+  showSuggestions = true,
+  showClearButton = true,
+  showSearchButton = false,
+  size = 'md',
+  class: className = ''
+} = Astro.props;
+
+// Generate unique ID for this input
+const inputId = `category-search-${mediaType}-${Math.random().toString(36).substr(2, 9)}`;
+
+// Media-specific placeholders
+const defaultPlaceholders = {
+  movie: 'Search movies...',
+  tv: 'Search TV shows...',
+  book: 'Search books...',
+  anime: 'Search anime...',
+  manga: 'Search manga...'
+};
+
+const searchPlaceholder = placeholder || defaultPlaceholders[mediaType];
+
+// Size classes
+const sizeClasses = {
+  sm: 'px-3 py-2 text-sm',
+  md: 'px-4 py-3 text-base',
+  lg: 'px-5 py-4 text-lg'
+};
+
+const iconSizes = {
+  sm: 'h-4 w-4',
+  md: 'h-5 w-5',
+  lg: 'h-6 w-6'
+};
+---
+
+<div class={`category-search-input relative ${className}`} data-media-type={mediaType}>
+  <div class="search-input-container relative">
+    <!-- Search Icon -->
+    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+      <svg class={`${iconSizes[size]} text-gray-400`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+
+    <!-- Search Input -->
+    <input
+      type="search"
+      id={inputId}
+      class={`search-input block w-full pl-10 ${showClearButton || showSearchButton ? 'pr-20' : 'pr-4'} ${sizeClasses[size]} border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200`}
+      placeholder={searchPlaceholder}
+      value={initialQuery}
+      autocomplete="off"
+      spellcheck="false"
+    />
+
+    <!-- Right Side Controls -->
+    <div class="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
+      <!-- Loading Indicator -->
+      <div class="search-loading hidden">
+        <div class={`animate-spin rounded-full ${iconSizes[size]} border-b-2 border-blue-600`}></div>
+      </div>
+
+      <!-- Clear Button -->
+      {showClearButton && (
+        <button
+          type="button"
+          id={`${inputId}-clear`}
+          class="clear-button hidden text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1 transition-colors duration-200"
+          aria-label="Clear search"
+          title="Clear search"
+        >
+          <svg class={iconSizes[size]} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+
+      <!-- Search Button -->
+      {showSearchButton && (
+        <button
+          type="button"
+          id={`${inputId}-search`}
+          class="search-button text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full p-1 transition-colors duration-200"
+          aria-label="Search"
+          title="Search"
+        >
+          <svg class={iconSizes[size]} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
+      )}
+    </div>
+
+    <!-- Search Suggestions -->
+    {showSuggestions && (
+      <CategorySearchSuggestions 
+        mediaType={mediaType}
+        inputId={inputId}
+        maxSuggestions={8}
+        includeHistory={true}
+        includePopular={true}
+        includeTrending={true}
+      />
+    )}
+  </div>
+
+  <!-- Search Status -->
+  <div class="search-status mt-2 text-sm text-gray-600 dark:text-gray-400 hidden">
+    <!-- Status messages will be displayed here -->
+  </div>
+</div>
+
+<script>
+  import { getSearchState } from '../lib/searchState';
+  import type { SearchState } from '../lib/searchState';
+
+  class CategorySearchInput {
+    private container: HTMLElement;
+    private inputElement: HTMLInputElement;
+    private clearButton: HTMLButtonElement | null;
+    private searchButton: HTMLButtonElement | null;
+    private loadingIndicator: HTMLElement | null;
+    private statusElement: HTMLElement | null;
+    private mediaType: string;
+    private searchState: any; // SearchStateManager
+    private unsubscribe: (() => void) | null = null;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.mediaType = container.dataset.mediaType || '';
+      
+      // Get elements
+      const input = container.querySelector('.search-input') as HTMLInputElement;
+      if (!input) {
+        console.error('CategorySearchInput: Search input not found');
+        return;
+      }
+      
+      this.inputElement = input;
+      this.clearButton = container.querySelector('.clear-button');
+      this.searchButton = container.querySelector('.search-button');
+      this.loadingIndicator = container.querySelector('.search-loading');
+      this.statusElement = container.querySelector('.search-status');
+      
+      // Initialize search state
+      this.searchState = getSearchState(this.mediaType);
+      
+      this.init();
+    }
+
+    private init() {
+      // Subscribe to search state changes
+      this.unsubscribe = this.searchState.subscribe(this.handleStateChange.bind(this));
+      
+      // Set initial state
+      const currentState = this.searchState.getState();
+      if (currentState.query && !this.inputElement.value) {
+        this.inputElement.value = currentState.query;
+      }
+      
+      // Setup event listeners
+      this.setupEventListeners();
+      
+      // Initialize UI state
+      this.updateUI();
+    }
+
+    private setupEventListeners() {
+      // Input events
+      this.inputElement.addEventListener('input', this.handleInput.bind(this));
+      this.inputElement.addEventListener('keydown', this.handleKeyDown.bind(this));
+      this.inputElement.addEventListener('focus', this.handleFocus.bind(this));
+      this.inputElement.addEventListener('blur', this.handleBlur.bind(this));
+      
+      // Button events
+      if (this.clearButton) {
+        this.clearButton.addEventListener('click', this.handleClear.bind(this));
+      }
+      
+      if (this.searchButton) {
+        this.searchButton.addEventListener('click', this.handleSearch.bind(this));
+      }
+      
+      // Form submission (if input is in a form)
+      const form = this.inputElement.closest('form');
+      if (form) {
+        form.addEventListener('submit', this.handleFormSubmit.bind(this));
+      }
+    }
+
+    private handleInput(e: Event) {
+      const query = (e.target as HTMLInputElement).value;
+      this.searchState.setQuery(query, true); // Debounced
+      this.updateUI();
+    }
+
+    private handleKeyDown(e: KeyboardEvent) {
+      switch (e.key) {
+        case 'Enter':
+          e.preventDefault();
+          const query = this.inputElement.value.trim();
+          if (query) {
+            this.searchState.setQuery(query, false); // Immediate
+          }
+          break;
+        case 'Escape':
+          this.inputElement.blur();
+          break;
+      }
+    }
+
+    private handleFocus() {
+      this.container.classList.add('focused');
+    }
+
+    private handleBlur() {
+      this.container.classList.remove('focused');
+    }
+
+    private handleClear() {
+      this.inputElement.value = '';
+      this.searchState.clearSearch();
+      this.inputElement.focus();
+      this.updateUI();
+    }
+
+    private handleSearch() {
+      const query = this.inputElement.value.trim();
+      if (query) {
+        this.searchState.setQuery(query, false); // Immediate
+      }
+    }
+
+    private handleFormSubmit(e: Event) {
+      e.preventDefault();
+      const query = this.inputElement.value.trim();
+      if (query) {
+        this.searchState.setQuery(query, false); // Immediate
+      }
+    }
+
+    private handleStateChange(state: SearchState) {
+      // Update input value if it differs from state (e.g., from URL or external change)
+      if (state.query !== this.inputElement.value) {
+        this.inputElement.value = state.query;
+      }
+      
+      // Update loading state
+      this.updateLoadingState(state.loading);
+      
+      // Update status
+      this.updateStatus(state);
+      
+      // Update UI
+      this.updateUI();
+    }
+
+    private updateUI() {
+      const hasValue = this.inputElement.value.trim().length > 0;
+      
+      // Show/hide clear button
+      if (this.clearButton) {
+        this.clearButton.classList.toggle('hidden', !hasValue);
+      }
+      
+      // Update input styling based on state
+      const state = this.searchState.getState();
+      this.inputElement.classList.toggle('border-red-300', !!state.error);
+      this.inputElement.classList.toggle('dark:border-red-600', !!state.error);
+    }
+
+    private updateLoadingState(loading: boolean) {
+      if (this.loadingIndicator) {
+        this.loadingIndicator.classList.toggle('hidden', !loading);
+      }
+      
+      // Disable input during loading
+      this.inputElement.disabled = loading;
+      
+      // Update buttons
+      if (this.searchButton) {
+        this.searchButton.disabled = loading;
+      }
+    }
+
+    private updateStatus(state: SearchState) {
+      if (!this.statusElement) return;
+      
+      let statusText = '';
+      let statusClass = 'text-gray-600 dark:text-gray-400';
+      
+      if (state.error) {
+        statusText = state.error;
+        statusClass = 'text-red-600 dark:text-red-400';
+      } else if (state.loading) {
+        statusText = 'Searching...';
+        statusClass = 'text-blue-600 dark:text-blue-400';
+      } else if (state.query && state.results.length > 0) {
+        statusText = `Found ${state.total} result${state.total === 1 ? '' : 's'}`;
+        statusClass = 'text-green-600 dark:text-green-400';
+      } else if (state.query && state.results.length === 0) {
+        statusText = 'No results found';
+        statusClass = 'text-gray-600 dark:text-gray-400';
+      }
+      
+      if (statusText) {
+        this.statusElement.textContent = statusText;
+        this.statusElement.className = `search-status mt-2 text-sm ${statusClass}`;
+        this.statusElement.classList.remove('hidden');
+      } else {
+        this.statusElement.classList.add('hidden');
+      }
+    }
+
+    // Public methods
+    public setValue(value: string) {
+      this.inputElement.value = value;
+      this.searchState.setQuery(value, false);
+      this.updateUI();
+    }
+
+    public getValue(): string {
+      return this.inputElement.value;
+    }
+
+    public focus() {
+      this.inputElement.focus();
+    }
+
+    public clear() {
+      this.handleClear();
+    }
+
+    public getSearchState() {
+      return this.searchState;
+    }
+
+    public destroy() {
+      if (this.unsubscribe) {
+        this.unsubscribe();
+      }
+    }
+  }
+
+  // Initialize all category search input components
+  function initializeCategorySearchInputs() {
+    const containers = document.querySelectorAll('.category-search-input');
+    containers.forEach(container => {
+      new CategorySearchInput(container as HTMLElement);
+    });
+  }
+
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeCategorySearchInputs);
+  } else {
+    initializeCategorySearchInputs();
+  }
+
+  // Export for manual initialization
+  (window as any).CategorySearchInput = CategorySearchInput;
+  (window as any).initializeCategorySearchInputs = initializeCategorySearchInputs;
+</script>
+
+<style>
+  .category-search-input.focused .search-input {
+    @apply ring-2 ring-blue-500 border-transparent;
+  }
+
+  .search-input:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .search-input[type="search"]::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .search-input[type="search"]::-webkit-search-decoration {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .category-search-input {
+      width: 100%;
+    }
+  }
+</style>

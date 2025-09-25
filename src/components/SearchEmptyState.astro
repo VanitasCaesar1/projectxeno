@@ -1,0 +1,353 @@
+---
+/**
+ * Empty state component for search results
+ * Provides helpful suggestions when no results are found
+ */
+
+interface Props {
+  mediaType?: 'movie' | 'tv' | 'book' | 'anime' | 'manga';
+  query?: string;
+  hasFilters?: boolean;
+  showSuggestions?: boolean;
+  onClearFilters?: string; // JavaScript function name
+  onClearSearch?: string; // JavaScript function name
+  class?: string;
+}
+
+const { 
+  mediaType,
+  query = '',
+  hasFilters = false,
+  showSuggestions = true,
+  onClearFilters = 'clearSearchFilters',
+  onClearSearch = 'clearSearch',
+  class: className = ''
+} = Astro.props;
+
+// Media-specific suggestions
+const suggestionsByType = {
+  movie: [
+    'Try searching for popular genres like "action", "comedy", or "drama"',
+    'Search for specific actors, directors, or movie franchises',
+    'Look for award-winning films or recent releases',
+    'Try broader terms like "Marvel" or "Disney"'
+  ],
+  tv: [
+    'Try searching for popular genres like "drama", "comedy", or "crime"',
+    'Search for specific networks like "Netflix", "HBO", or "BBC"',
+    'Look for TV series by actor names or show creators',
+    'Try broader terms like "sitcom" or "documentary"'
+  ],
+  book: [
+    'Try searching for popular genres like "fiction", "mystery", or "romance"',
+    'Search for specific authors or book series',
+    'Look for award-winning books or bestsellers',
+    'Try broader terms like "classic" or "young adult"'
+  ],
+  anime: [
+    'Try searching for popular genres like "shounen", "shoujo", or "action"',
+    'Search for specific studios like "Studio Ghibli" or "Madhouse"',
+    'Look for seasonal anime or popular series',
+    'Try broader terms like "mecha" or "slice of life"'
+  ],
+  manga: [
+    'Try searching for popular genres like "shounen", "shoujo", or "seinen"',
+    'Search for specific manga authors or publishers',
+    'Look for award-winning manga or popular series',
+    'Try broader terms like "romance" or "fantasy"'
+  ]
+};
+
+const mediaTypeLabels = {
+  movie: 'movies',
+  tv: 'TV shows',
+  book: 'books',
+  anime: 'anime',
+  manga: 'manga'
+};
+
+const suggestions = mediaType ? suggestionsByType[mediaType] : [
+  'Try using different keywords or phrases',
+  'Check your spelling and try again',
+  'Use broader search terms',
+  'Remove some filters to see more results'
+];
+
+const mediaLabel = mediaType ? mediaTypeLabels[mediaType] : 'content';
+---
+
+<div class={`search-empty-state text-center py-12 px-6 ${className}`}>
+  <!-- Icon -->
+  <div class="empty-state-icon mb-6">
+    <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  </div>
+
+  <!-- Main Message -->
+  <div class="empty-state-content mb-8">
+    <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+      {query ? `No ${mediaLabel} found` : `Start searching for ${mediaLabel}`}
+    </h3>
+    
+    {query ? (
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        We couldn't find any {mediaLabel} matching 
+        <span class="font-medium text-gray-900 dark:text-gray-100">"{query}"</span>
+        {hasFilters && ' with your current filters'}.
+      </p>
+    ) : (
+      <p class="text-gray-600 dark:text-gray-400 mb-4">
+        Enter a search term above to discover {mediaLabel}.
+      </p>
+    )}
+  </div>
+
+  <!-- Action Buttons -->
+  {query && (
+    <div class="empty-state-actions mb-8">
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        {hasFilters && (
+          <button
+            type="button"
+            onclick={`${onClearFilters}()`}
+            class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+          >
+            Clear Filters
+          </button>
+        )}
+        
+        <button
+          type="button"
+          onclick={`${onClearSearch}()`}
+          class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+        >
+          Clear Search
+        </button>
+      </div>
+    </div>
+  )}
+
+  <!-- Suggestions -->
+  {showSuggestions && (
+    <div class="empty-state-suggestions">
+      <h4 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+        Search Tips
+      </h4>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+        {suggestions.map((suggestion, index) => (
+          <div class="suggestion-item bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-left">
+            <div class="flex items-start gap-3">
+              <div class="flex-shrink-0 mt-1">
+                <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+              </div>
+              <p class="text-sm text-gray-700 dark:text-gray-300">
+                {suggestion}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  <!-- Popular Searches (if available) -->
+  {mediaType && (
+    <div class="popular-searches mt-8">
+      <h4 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+        Popular {mediaTypeLabels[mediaType]} searches
+      </h4>
+      
+      <div class="flex flex-wrap gap-2 justify-center max-w-2xl mx-auto">
+        <!-- Popular search tags will be populated by JavaScript -->
+        <div class="popular-tags flex flex-wrap gap-2 justify-center">
+          <!-- Dynamic content -->
+        </div>
+      </div>
+    </div>
+  )}
+
+  <!-- Help Link -->
+  <div class="empty-state-help mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      Still having trouble? 
+      <a href="/help/search" class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium">
+        Learn more about search
+      </a>
+    </p>
+  </div>
+</div>
+
+<script>
+  class SearchEmptyState {
+    private container: HTMLElement;
+    private mediaType: string;
+    private popularTagsContainer: HTMLElement | null;
+
+    constructor(container: HTMLElement) {
+      this.container = container;
+      this.mediaType = container.dataset.mediaType || '';
+      this.popularTagsContainer = container.querySelector('.popular-tags');
+      
+      this.init();
+    }
+
+    private init() {
+      if (this.mediaType && this.popularTagsContainer) {
+        this.loadPopularSearches();
+      }
+    }
+
+    private async loadPopularSearches() {
+      try {
+        const response = await fetch(`/api/search/popular?mediaType=${this.mediaType}&limit=8`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data.length > 0) {
+            this.renderPopularTags(data.data);
+          } else {
+            this.renderDefaultTags();
+          }
+        } else {
+          this.renderDefaultTags();
+        }
+      } catch (error) {
+        console.warn('Failed to load popular searches:', error);
+        this.renderDefaultTags();
+      }
+    }
+
+    private renderPopularTags(tags: Array<{ query: string; count?: number }>) {
+      if (!this.popularTagsContainer) return;
+
+      const html = tags.map(tag => `
+        <button 
+          class="popular-tag px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-blue-300 dark:hover:border-blue-500 transition-colors duration-200 cursor-pointer"
+          onclick="searchPopularTerm('${tag.query.replace(/'/g, "\\'")}')"
+        >
+          ${tag.query}
+          ${tag.count ? `<span class="ml-1 text-xs text-gray-500">(${tag.count})</span>` : ''}
+        </button>
+      `).join('');
+
+      this.popularTagsContainer.innerHTML = html;
+    }
+
+    private renderDefaultTags() {
+      if (!this.popularTagsContainer) return;
+
+      const defaultTags = this.getDefaultTags();
+      const html = defaultTags.map(tag => `
+        <button 
+          class="popular-tag px-3 py-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-blue-300 dark:hover:border-blue-500 transition-colors duration-200 cursor-pointer"
+          onclick="searchPopularTerm('${tag.replace(/'/g, "\\'")}')"
+        >
+          ${tag}
+        </button>
+      `).join('');
+
+      this.popularTagsContainer.innerHTML = html;
+    }
+
+    private getDefaultTags(): string[] {
+      const defaultTagsByType: Record<string, string[]> = {
+        movie: ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Romance', 'Thriller', 'Animation'],
+        tv: ['Drama', 'Comedy', 'Crime', 'Sci-Fi', 'Reality', 'Documentary', 'Animation', 'Mystery'],
+        book: ['Fiction', 'Mystery', 'Romance', 'Fantasy', 'Biography', 'Self-Help', 'History', 'Young Adult'],
+        anime: ['Action', 'Romance', 'Comedy', 'Drama', 'Fantasy', 'Shounen', 'Shoujo', 'Slice of Life'],
+        manga: ['Action', 'Romance', 'Comedy', 'Drama', 'Fantasy', 'Shounen', 'Shoujo', 'Horror']
+      };
+
+      return defaultTagsByType[this.mediaType] || ['Popular', 'Trending', 'New', 'Classic'];
+    }
+  }
+
+  // Global function to handle popular term clicks
+  (window as any).searchPopularTerm = function(term: string) {
+    // Find the search input and set its value
+    const searchInput = document.querySelector('.category-search-input .search-input') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = term;
+      
+      // Trigger search
+      const event = new Event('input', { bubbles: true });
+      searchInput.dispatchEvent(event);
+      
+      // Focus the input
+      searchInput.focus();
+    }
+  };
+
+  // Default implementations for clear functions (can be overridden)
+  if (!(window as any).clearSearchFilters) {
+    (window as any).clearSearchFilters = function() {
+      // Dispatch event to clear filters
+      const event = new CustomEvent('clearFilters', { bubbles: true });
+      document.dispatchEvent(event);
+    };
+  }
+
+  if (!(window as any).clearSearch) {
+    (window as any).clearSearch = function() {
+      // Find and clear search input
+      const searchInput = document.querySelector('.category-search-input .search-input') as HTMLInputElement;
+      if (searchInput) {
+        searchInput.value = '';
+        const event = new Event('input', { bubbles: true });
+        searchInput.dispatchEvent(event);
+        searchInput.focus();
+      }
+    };
+  }
+
+  // Initialize all search empty state components
+  function initializeSearchEmptyStates() {
+    const containers = document.querySelectorAll('.search-empty-state');
+    containers.forEach(container => {
+      new SearchEmptyState(container as HTMLElement);
+    });
+  }
+
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeSearchEmptyStates);
+  } else {
+    initializeSearchEmptyStates();
+  }
+
+  // Export for manual initialization
+  (window as any).SearchEmptyState = SearchEmptyState;
+  (window as any).initializeSearchEmptyStates = initializeSearchEmptyStates;
+</script>
+
+<style>
+  .popular-tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .suggestion-item {
+    transition: all 0.2s ease;
+  }
+
+  .suggestion-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (max-width: 640px) {
+    .empty-state-actions .flex {
+      flex-direction: column;
+    }
+    
+    .popular-tags {
+      gap: 0.5rem;
+    }
+    
+    .popular-tag {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+    }
+  }
+</style>

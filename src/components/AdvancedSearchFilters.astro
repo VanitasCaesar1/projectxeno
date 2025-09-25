@@ -1,0 +1,434 @@
+---
+interface Props {
+  initialFilters?: {
+    mediaType?: string;
+    genres?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+    ratingFrom?: number;
+    ratingTo?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  };
+  onFiltersChange?: string; // JavaScript function name to call when filters change
+}
+
+const { 
+  initialFilters = {},
+  onFiltersChange = 'handleFiltersChange'
+} = Astro.props;
+
+const currentYear = new Date().getFullYear();
+const mediaTypes = [
+  { value: 'all', label: 'All Media' },
+  { value: 'movie', label: 'Movies' },
+  { value: 'tv', label: 'TV Shows' },
+  { value: 'book', label: 'Books' },
+  { value: 'anime', label: 'Anime' },
+  { value: 'manga', label: 'Manga' }
+];
+
+const sortOptions = [
+  { value: 'relevance', label: 'Relevance' },
+  { value: 'rating', label: 'Rating' },
+  { value: 'year', label: 'Year' },
+  { value: 'title', label: 'Title' },
+  { value: 'popularity', label: 'Popularity' }
+];
+
+const genres = [
+  'Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime', 
+  'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror',
+  'Music', 'Mystery', 'Romance', 'Science Fiction', 'Thriller', 'War', 'Western'
+];
+---
+
+<div class="advanced-search-filters bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Advanced Filters</h3>
+    <button 
+      id="toggle-filters" 
+      class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+    >
+      <span class="toggle-text">Show Filters</span>
+      <svg class="inline-block w-4 h-4 ml-1 transform transition-transform toggle-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  </div>
+
+  <div id="filters-content" class="hidden">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Media Type Filter -->
+      <div class="filter-group">
+        <label for="media-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Media Type
+        </label>
+        <select 
+          id="media-type" 
+          name="mediaType"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+        >
+          {mediaTypes.map(type => (
+            <option 
+              value={type.value} 
+              selected={initialFilters.mediaType === type.value}
+            >
+              {type.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <!-- Year Range Filter -->
+      <div class="filter-group">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Release Year
+        </label>
+        <div class="flex gap-2">
+          <input
+            type="number"
+            id="year-from"
+            name="yearFrom"
+            placeholder="From"
+            min="1900"
+            max={currentYear}
+            value={initialFilters.yearFrom || ''}
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+          <input
+            type="number"
+            id="year-to"
+            name="yearTo"
+            placeholder="To"
+            min="1900"
+            max={currentYear}
+            value={initialFilters.yearTo || ''}
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+      </div>
+
+      <!-- Rating Range Filter -->
+      <div class="filter-group">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Rating
+        </label>
+        <div class="flex gap-2">
+          <input
+            type="number"
+            id="rating-from"
+            name="ratingFrom"
+            placeholder="Min"
+            min="0"
+            max="10"
+            step="0.1"
+            value={initialFilters.ratingFrom || ''}
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+          <input
+            type="number"
+            id="rating-to"
+            name="ratingTo"
+            placeholder="Max"
+            min="0"
+            max="10"
+            step="0.1"
+            value={initialFilters.ratingTo || ''}
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+      </div>
+
+      <!-- Sort Options -->
+      <div class="filter-group">
+        <label for="sort-by" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Sort By
+        </label>
+        <div class="flex gap-2">
+          <select 
+            id="sort-by" 
+            name="sortBy"
+            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          >
+            {sortOptions.map(option => (
+              <option 
+                value={option.value} 
+                selected={initialFilters.sortBy === option.value}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select 
+            id="sort-order" 
+            name="sortOrder"
+            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          >
+            <option value="desc" selected={initialFilters.sortOrder === 'desc'}>↓</option>
+            <option value="asc" selected={initialFilters.sortOrder === 'asc'}>↑</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Genres Filter -->
+      <div class="filter-group md:col-span-2">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Genres
+        </label>
+        <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+          {genres.map(genre => (
+            <label class="inline-flex items-center">
+              <input
+                type="checkbox"
+                name="genres"
+                value={genre}
+                checked={initialFilters.genres?.includes(genre)}
+                class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              />
+              <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{genre}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+      <button
+        type="button"
+        id="clear-filters"
+        class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 rounded-md transition-colors"
+      >
+        Clear All
+      </button>
+      
+      <div class="flex gap-2">
+        <button
+          type="button"
+          id="save-search"
+          class="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-md transition-colors"
+        >
+          Save Search
+        </button>
+        <button
+          type="button"
+          id="apply-filters"
+          class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+        >
+          Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  interface SearchFilters {
+    mediaType?: string;
+    genres?: string[];
+    yearFrom?: number;
+    yearTo?: number;
+    ratingFrom?: number;
+    ratingTo?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  }
+
+  class AdvancedSearchFilters {
+    private filtersContainer: HTMLElement;
+    private toggleButton: HTMLElement;
+    private filtersContent: HTMLElement;
+    private isExpanded: boolean = false;
+
+    constructor() {
+      this.filtersContainer = document.querySelector('.advanced-search-filters') as HTMLElement;
+      this.toggleButton = document.getElementById('toggle-filters') as HTMLElement;
+      this.filtersContent = document.getElementById('filters-content') as HTMLElement;
+      
+      this.init();
+    }
+
+    private init() {
+      // Toggle filters visibility
+      this.toggleButton.addEventListener('click', this.toggleFilters.bind(this));
+      
+      // Apply filters button
+      const applyButton = document.getElementById('apply-filters');
+      applyButton?.addEventListener('click', this.applyFilters.bind(this));
+      
+      // Clear filters button
+      const clearButton = document.getElementById('clear-filters');
+      clearButton?.addEventListener('click', this.clearFilters.bind(this));
+      
+      // Save search button
+      const saveButton = document.getElementById('save-search');
+      saveButton?.addEventListener('click', this.saveSearch.bind(this));
+      
+      // Auto-apply filters on change (with debounce)
+      this.setupAutoApply();
+    }
+
+    private toggleFilters() {
+      this.isExpanded = !this.isExpanded;
+      
+      if (this.isExpanded) {
+        this.filtersContent.classList.remove('hidden');
+        this.toggleButton.querySelector('.toggle-text')!.textContent = 'Hide Filters';
+        this.toggleButton.querySelector('.toggle-icon')!.classList.add('rotate-180');
+      } else {
+        this.filtersContent.classList.add('hidden');
+        this.toggleButton.querySelector('.toggle-text')!.textContent = 'Show Filters';
+        this.toggleButton.querySelector('.toggle-icon')!.classList.remove('rotate-180');
+      }
+    }
+
+    private setupAutoApply() {
+      let debounceTimer: number;
+      
+      const inputs = this.filtersContainer.querySelectorAll('input, select');
+      inputs.forEach(input => {
+        input.addEventListener('change', () => {
+          clearTimeout(debounceTimer);
+          debounceTimer = window.setTimeout(() => {
+            this.applyFilters();
+          }, 500);
+        });
+      });
+    }
+
+    private getFilters(): SearchFilters {
+      const formData = new FormData(this.filtersContainer.querySelector('form') || this.filtersContainer as any);
+      
+      const filters: SearchFilters = {};
+      
+      // Media type
+      const mediaType = (document.getElementById('media-type') as HTMLSelectElement).value;
+      if (mediaType && mediaType !== 'all') {
+        filters.mediaType = mediaType;
+      }
+      
+      // Year range
+      const yearFrom = parseInt((document.getElementById('year-from') as HTMLInputElement).value);
+      const yearTo = parseInt((document.getElementById('year-to') as HTMLInputElement).value);
+      if (!isNaN(yearFrom)) filters.yearFrom = yearFrom;
+      if (!isNaN(yearTo)) filters.yearTo = yearTo;
+      
+      // Rating range
+      const ratingFrom = parseFloat((document.getElementById('rating-from') as HTMLInputElement).value);
+      const ratingTo = parseFloat((document.getElementById('rating-to') as HTMLInputElement).value);
+      if (!isNaN(ratingFrom)) filters.ratingFrom = ratingFrom;
+      if (!isNaN(ratingTo)) filters.ratingTo = ratingTo;
+      
+      // Sort options
+      filters.sortBy = (document.getElementById('sort-by') as HTMLSelectElement).value;
+      filters.sortOrder = (document.getElementById('sort-order') as HTMLSelectElement).value;
+      
+      // Genres
+      const genreCheckboxes = this.filtersContainer.querySelectorAll('input[name="genres"]:checked') as NodeListOf<HTMLInputElement>;
+      if (genreCheckboxes.length > 0) {
+        filters.genres = Array.from(genreCheckboxes).map(cb => cb.value);
+      }
+      
+      return filters;
+    }
+
+    private applyFilters() {
+      const filters = this.getFilters();
+      
+      // Dispatch custom event with filters
+      const event = new CustomEvent('filtersChanged', {
+        detail: filters,
+        bubbles: true
+      });
+      
+      this.filtersContainer.dispatchEvent(event);
+      
+      // Call global handler if it exists
+      if (typeof window[onFiltersChange] === 'function') {
+        window[onFiltersChange](filters);
+      }
+    }
+
+    private clearFilters() {
+      // Reset all form inputs
+      const inputs = this.filtersContainer.querySelectorAll('input, select') as NodeListOf<HTMLInputElement | HTMLSelectElement>;
+      inputs.forEach(input => {
+        if (input.type === 'checkbox') {
+          (input as HTMLInputElement).checked = false;
+        } else if (input.tagName === 'SELECT') {
+          (input as HTMLSelectElement).selectedIndex = 0;
+        } else {
+          (input as HTMLInputElement).value = '';
+        }
+      });
+      
+      // Apply cleared filters
+      this.applyFilters();
+    }
+
+    private async saveSearch() {
+      const filters = this.getFilters();
+      const query = (document.getElementById('search-input') as HTMLInputElement)?.value || '';
+      
+      if (!query.trim()) {
+        alert('Please enter a search query first');
+        return;
+      }
+      
+      const name = prompt('Enter a name for this saved search:');
+      if (!name) return;
+      
+      try {
+        const response = await fetch('/api/search/saved', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('auth_token') || '')
+          },
+          body: JSON.stringify({
+            name,
+            query,
+            filters,
+            isPublic: false
+          })
+        });
+        
+        if (response.ok) {
+          alert('Search saved successfully!');
+        } else {
+          const error = await response.json();
+          alert('Failed to save search: ' + error.error?.message);
+        }
+      } catch (error) {
+        console.error('Error saving search:', error);
+        alert('Failed to save search. Please try again.');
+      }
+    }
+  }
+
+  // Initialize when DOM is loaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => new AdvancedSearchFilters());
+  } else {
+    new AdvancedSearchFilters();
+  }
+</script>
+
+<style>
+  .rotate-180 {
+    transform: rotate(180deg);
+  }
+  
+  .filter-group label {
+    user-select: none;
+  }
+  
+  .filter-group input[type="checkbox"] {
+    cursor: pointer;
+  }
+  
+  .filter-group input[type="checkbox"] + span {
+    cursor: pointer;
+  }
+</style>
